@@ -36,6 +36,5 @@ Thumbs.db
 config/nativephp.php
 storage/framework/sessions/*.gitkeep
 storage/framework/sessions/*
-node_modules/
 nativephp/
 dist/

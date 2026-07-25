@@ -1,24 +1,24 @@
 # Feature: Setup Wizard
 
 ## Objective
-First-run wizard that installs kernel-evolving on the user's machine — Docker detection/install, image pull, configuration, container startup, and kernel-central pairing.
+7-step first-run wizard that automates kernel-evolving installation (Docker check, image pull, configuration, container start, kernel-central pairing).
 
 ## Dependencies
-- Laravel 13 project scaffold (composer create-project, nativephp/desktop installed)
-- Docker CLI available on host
+- Laravel 13 + Livewire 4 scaffold (complete)
+- NativePHP Desktop shell (complete)
 
 ## Stack
-Blade + Livewire 4 + Tailwind CSS 4 + Docker CLI
+- Livewire 4 component (`App\Livewire\SetupWizard`)
+- Blade view with step-by-step UI
+- Tailwind CSS 4 for styling
 
 ## Expected output
-- Step 1: Welcome screen with system requirements check
-- Step 2: Docker detection — install guide if missing (Docker Desktop on Win/Mac, apt on Linux)
-- Step 3: Pull kernel-evolving Docker image with progress bar
-- Step 4: Configure VRAM, default model, cloud providers, voice sample
-- Step 5: Start container with live startup log
-- Step 6: Login to kernel-central + generate device pairing token + establish WS tunnel
-- Step 7: Done — launch dashboard with quick-start tips
-- Wizard remembers state — can be skipped on subsequent launches
+- / route serves the setup wizard as the default first-run page
+- Step navigation (previous/next) works
+- Docker detection via `docker --version` CLI call
+- Configuration form saves VRAM, model, API keys
+- Container start and kernel-central pairing are wired (placeholder implementations)
+- On completion, redirects to /dashboard
 
 ## Status
-[ ] Not started
+[ ] In progress — scaffolded with placeholder implementations
