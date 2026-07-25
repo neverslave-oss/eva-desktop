@@ -1,0 +1,13 @@
+graph TD
+  Phone["📱 kernel-mobile-v1\nLaravel 13 + NativePHP Mobile\nTelegram chat UI clone"]
+  Central["🌐 kernel-central.neverslave.com\nLaravel 13\nSanctum auth + WS tunnel relay"]
+  Desktop["🖥️ kernel-desktop-v1\nLaravel 13 + NativePHP Desktop\nSetup wizard + full dashboard"]
+  Evolving["🤖 kernel-evolving\nFastAPI port 8779\nNemotron-3B agent"]
+  Docker["🐳 Docker sandbox"]
+
+  Phone -->|"HTTPS (Sanctum)"| Central
+  Desktop -->|"HTTPS (Sanctum)"| Central
+  Central -->|"WebSocket tunnel"| Evolving
+  Desktop -->|"localhost:8779"| Evolving
+  Desktop -->|"manages"| Docker
+  Docker -->|"runs"| Evolving
