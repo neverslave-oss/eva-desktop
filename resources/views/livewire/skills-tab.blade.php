@@ -1,14 +1,9 @@
-<div>
-    <h2 class="text-2xl font-bold text-white mb-4">Skills</h2>
-    <p class="text-gray-400 mb-6">Browse and manage installed kernel-evolving skills.</p>
-
-    <div class="bg-gray-900 rounded-xl border border-gray-800 p-6 text-center text-gray-500">
-        <svg class="w-16 h-16 mx-auto mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-        <p class="font-medium">Skills Manager</p>
-        <p class="text-sm mt-1">Coming soon — browse, install, run, and manage skills.</p>
+<div id="skills-panel" style="padding:20px 24px;">
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input id="skill-search" class="dash-mono-input" placeholder="Filter skills…" oninput="filterSkills()" style="flex:1;">
+        <span id="skill-count" style="font-size:0.75em;color:#8b949e;align-self:center;"></span>
     </div>
+    <div id="skill-list" style="display:flex;flex-direction:column;gap:4px;max-height:420px;overflow-y:auto;margin-bottom:20px;"></div>
+    <div style="font-size:0.78em;color:#8b949e;margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Routines</div>
+    <div id="routine-list" style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;"></div>
 </div>

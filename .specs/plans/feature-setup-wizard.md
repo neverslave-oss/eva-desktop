@@ -21,4 +21,17 @@
 - On completion, redirects to /dashboard
 
 ## Status
-[ ] In progress — scaffolded with placeholder implementations
+[x] Completed — 2026-07-28
+
+### Notes
+- Full 7-step setup wizard implemented with real system detection:
+  - Step 1: Welcome — detects if API already running (skips to Done)
+  - Step 2: System Check — real Docker, Docker Compose, GPU detection via nvidia-smi
+  - Step 3: Install Agent — clones repo, writes .env + config.yaml, runs install.sh
+  - Step 4: Configure — VRAM, inference mode, API keys, Telegram, evolution toggle
+  - Step 5: Start Agent — runs start.sh (bare-metal) or docker compose up (Docker), polls health
+  - Step 6: Pair Device — kernel-central pairing (placeholder for OAuth)
+  - Step 7: Done — redirects to dashboard
+- Created App\Services\KernelEvolvingService with full lifecycle management
+- Supports both Docker (docker compose) and bare-metal (install.sh + start.sh) modes
+- GPU detection correctly identifies RTX 4090 (16 GB VRAM)

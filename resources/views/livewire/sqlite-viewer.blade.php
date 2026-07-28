@@ -1,13 +1,30 @@
-<div>
-    <h2 class="text-2xl font-bold text-white mb-4">SQLite Viewer</h2>
-    <p class="text-gray-400 mb-6">Browse kernel-evolving databases and tables.</p>
-
-    <div class="bg-gray-900 rounded-xl border border-gray-800 p-6 text-center text-gray-500">
-        <svg class="w-16 h-16 mx-auto mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
-        </svg>
-        <p class="font-medium">Database Viewer</p>
-        <p class="text-sm mt-1">Coming soon — browse tables, run queries, and export data.</p>
+<div style="padding:20px 24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="font-size:0.7em;color:#8b949e;text-transform:uppercase;letter-spacing:.1em;">SQLite Viewer</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button class="dash-ctrl-btn" onclick="sqliteRefresh()">↺ Refresh</button>
+        </div>
+    </div>
+    <div id="mem-sqlite-view" style="display:flex;flex-direction:column;overflow:hidden;border:1px solid #21262d;border-radius:8px;background:#0d1117;min-height:500px;">
+        <div id="mem-sqlite-header" style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #21262d;background:#0f141a;min-height:42px;flex-wrap:wrap;">
+            <span id="mem-sqlite-filename" style="font-size:0.82em;color:#79c0ff;font-family:monospace;">Select a database</span>
+            <span id="mem-sqlite-meta" style="font-size:0.7em;color:#8b949e;margin-left:auto;"></span>
+            <button class="dash-ctrl-btn" id="mem-sqlite-refresh-btn" onclick="sqliteRefresh()">↺ Refresh</button>
+            <button class="dash-ctrl-btn danger" id="mem-sqlite-clear-btn" onclick="sqliteClearAllTables()">🗑 Clear all tables</button>
+        </div>
+        <div id="mem-sqlite-tables-bar" style="display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid #21262d;background:#0d1117;flex-wrap:wrap;">
+            <span style="font-size:0.7em;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;">Tables:</span>
+            <div id="mem-sqlite-tables-list" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        </div>
+        <div id="mem-sqlite-table-data" style="flex:1;overflow:auto;padding:10px 14px;">
+            <div style="color:#555;font-size:0.8em;font-family:monospace;">Select a table to view its data.</div>
+        </div>
+        <div id="mem-sqlite-pagination" style="display:none;padding:8px 14px;border-top:1px solid #21262d;background:#0d1117;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="dash-ctrl-btn" id="sqlite-prev-btn" onclick="sqlitePrevPage()">◀ Prev</button>
+            <span id="sqlite-page-info" style="font-size:0.72em;color:#8b949e;"></span>
+            <button class="dash-ctrl-btn" id="sqlite-next-btn" onclick="sqliteNextPage()">Next ▶</button>
+            <span style="flex:1;"></span>
+            <span id="sqlite-total-rows" style="font-size:0.72em;color:#8b949e;"></span>
+        </div>
     </div>
 </div>

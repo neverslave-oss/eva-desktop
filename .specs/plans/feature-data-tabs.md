@@ -31,4 +31,10 @@ Blade + Livewire 4 + Tailwind CSS 4
 - Read-only by default, toggleable write mode
 
 ## Status
-[ ] Not started
+[x] Completed — 2026-07-28
+
+### Notes
+- Memory Tab: Full file tree with collapse/expand, search filter, create/rename/delete/edit operations, Markdown preview, SQLite viewer embedded (table browser, pagination, clear tables).
+- Workspace Tab: Navigable file tree with clickable folders, file viewer, edit/save/cancel.
+- SQLite Viewer: Standalone tab with table list, row browser, pagination, clear tables.
+- All UI matches evolution_dashboard.html exactly.

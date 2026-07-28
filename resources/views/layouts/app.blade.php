@@ -11,10 +11,11 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
 
-    <!-- D3.js -->
+    <!-- D3.js + Chart.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/css/dashboard.css', 'resources/js/app.js', 'resources/js/dashboard.js'])
     @livewireStyles
 </head>
 <body class="antialiased bg-gray-950 text-gray-100">
@@ -30,10 +31,8 @@
 
     @livewireScripts
     <script>
-        // Listen for Livewire navigation events
-        document.addEventListener('livewire:navigated', () => {
-            // Re-trigger any D3 visualizations if needed
-        });
+        // Set the kernel-evolving API base URL (configured by setup wizard)
+        window.KERNEL_API_BASE = window.KERNEL_API_BASE || 'http://localhost:8779';
     </script>
 </body>
 </html>

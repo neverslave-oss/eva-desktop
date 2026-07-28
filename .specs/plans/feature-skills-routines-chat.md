@@ -33,4 +33,10 @@ Blade + Livewire 4 + Tailwind CSS 4
 - Matches kernel-mobile-v1 chat UI patterns
 
 ## Status
-[ ] Not started
+[x] Completed — 2026-07-28
+
+### Notes
+- Skills Tab: Full skills browser with filter/search, skill count, tier badges, source badges. Loads from kernel-evolving /skills API.
+- Routines Tab: Routines list loaded from kernel-evolving /routines API. Also shown inline in Skills tab.
+- Chat Tab: Full Agent Chat with message bubbles, streaming replies via SSE, session management, command menu (/help, /skills, /routines, /init, /system, /models, /thoughts, /verbose, /replica, /workspaces, /new, /evolve, /version), provider/model routing sheet, inspector panel (system prompt, conversation history, tool calls, trajectories).
+- All UI matches evolution_dashboard.html exactly.

@@ -1,8 +1,8 @@
-<div class="max-w-2xl mx-auto py-8">
+<div class="max-w-2xl mx-auto py-8" wire:poll="{{ $pollHealth ? 'pollApiHealth' : null }}">
     <!-- Progress Bar -->
     <div class="mb-8">
         <div class="flex items-center justify-between mb-2">
-            @foreach (['Welcome', 'Docker', 'Pull Image', 'Configure', 'Start', 'Pair', 'Done'] as $i => $label)
+            @foreach (['Welcome', 'System Check', 'Install', 'Configure', 'Start', 'Pair', 'Done'] as $i => $label)
                 <div class="flex items-center">
                     <div @class([
                         'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold',
@@ -22,8 +22,14 @@
                 </div>
             @endforeach
         </div>
-        <div class="text-center text-sm text-gray-500">{{ ['Welcome!', 'Docker Check', 'Pull Image', 'Configure', 'Start Container', 'Pair Device', 'All Done!'][$step - 1] }}</div>
+        <div class="text-center text-sm text-gray-500">{{ ['Welcome!', 'System Check', 'Install Agent', 'Configure', 'Start Agent', 'Pair Device', 'All Done!'][$step - 1] }}</div>
     </div>
+
+    @if ($errorMessage)
+        <div class="bg-red-900/30 border border-red-800/50 text-red-400 rounded-lg px-4 py-3 text-sm mb-4">
+            ⚠️ {{ $errorMessage }}
+        </div>
+    @endif
 
     <!-- Step Content -->
     <div class="bg-gray-900 rounded-xl p-8 border border-gray-800">
@@ -32,103 +38,172 @@
                 <div class="text-center">
                     <h2 class="text-2xl font-bold text-white mb-4">Welcome to Kernel Desktop</h2>
                     <p class="text-gray-400 mb-6">
-                        This wizard will set up the kernel-evolving agent on your machine.
-                        You'll need Docker and a few minutes to get started.
+                        This wizard will install and start the kernel-evolving agent on your machine.
+                        The agent runs locally on port 8779 and powers the entire dashboard.
                     </p>
                     <div class="grid grid-cols-3 gap-4 mb-8 text-center">
                         <div class="bg-gray-800 rounded-lg p-4">
+                            <div class="text-2xl mb-1">🧬</div>
+                            <div class="text-xs text-gray-400">Self-Evolving Agent</div>
+                        </div>
+                        <div class="bg-gray-800 rounded-lg p-4">
                             <div class="text-2xl mb-1">🐳</div>
-                            <div class="text-xs text-gray-400">Docker</div>
+                            <div class="text-xs text-gray-400">Docker or Bare Metal</div>
                         </div>
                         <div class="bg-gray-800 rounded-lg p-4">
-                            <div class="text-2xl mb-1">🧠</div>
-                            <div class="text-xs text-gray-400">AI Agent</div>
-                        </div>
-                        <div class="bg-gray-800 rounded-lg p-4">
-                            <div class="text-2xl mb-1">🔗</div>
-                            <div class="text-xs text-gray-400">Cloud Pairing</div>
+                            <div class="text-2xl mb-1">📊</div>
+                            <div class="text-xs text-gray-400">Live Dashboard</div>
                         </div>
                     </div>
-                    <button wire:click="nextStep"
-                            class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium transition-colors">
-                        Get Started
-                    </button>
+
+                    @if ($apiAlreadyRunning)
+                        <div class="bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-4 mb-6">
+                            <p class="text-emerald-400 font-medium">✅ kernel-evolving is already running on port 8779!</p>
+                            <p class="text-gray-500 text-sm mt-1">You can skip setup and go straight to the dashboard.</p>
+                        </div>
+                        <button wire:click="finish"
+                                class="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium transition-colors">
+                            Go to Dashboard 🚀
+                        </button>
+                    @else
+                        <button wire:click="nextStep"
+                                class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium transition-colors">
+                            Get Started
+                        </button>
+                    @endif
                 </div>
                 @break
 
             @case(2)
                 <div>
-                    <h2 class="text-xl font-bold text-white mb-4">Docker Detection</h2>
-                    <p class="text-gray-400 mb-6">Checking if Docker is installed and running on your system.</p>
+                    <h2 class="text-xl font-bold text-white mb-4">System Check</h2>
+                    <p class="text-gray-400 mb-6">Detecting Docker, GPU, and existing installations.</p>
 
-                    <div class="bg-gray-800 rounded-lg p-4 mb-6">
+                    <!-- Docker -->
+                    <div class="bg-gray-800 rounded-lg p-4 mb-3">
                         <div class="flex items-center gap-3">
-                            @if ($dockerDetected)
+                            @if ($dockerStatus['installed'] ?? false)
                                 <span class="w-3 h-3 bg-emerald-500 rounded-full"></span>
-                                <span class="text-emerald-400">Docker is installed and running</span>
+                                <span class="text-emerald-400">Docker {{ $dockerStatus['version'] ?? '' }}</span>
                             @else
                                 <span class="w-3 h-3 bg-red-500 rounded-full"></span>
                                 <span class="text-red-400">Docker not detected</span>
                             @endif
                         </div>
-                        <p class="text-gray-500 text-sm mt-2">
-                            @unless ($dockerDetected)
-                                Please install Docker Desktop from <a href="https://docker.com" class="text-emerald-400 hover:underline">docker.com</a>
-                                and make sure the daemon is running, then click "Recheck".
+                        @if ($dockerStatus['installed'] ?? false)
+                            <p class="text-gray-500 text-sm mt-1">
+                                Daemon: {{ ($dockerStatus['running'] ?? false) ? '✅ Running' : '⚠️ Not running — start Docker Desktop' }}
+                            </p>
+                        @else
+                            <p class="text-gray-500 text-sm mt-1">
+                                Install from <a href="https://docker.com" class="text-emerald-400 hover:underline">docker.com</a>
+                            </p>
+                        @endif
+                    </div>
+
+                    <!-- Docker Compose -->
+                    <div class="bg-gray-800 rounded-lg p-4 mb-3">
+                        <div class="flex items-center gap-3">
+                            @if ($dockerComposeStatus['available'] ?? false)
+                                <span class="w-3 h-3 bg-emerald-500 rounded-full"></span>
+                                <span class="text-emerald-400">Docker Compose available</span>
                             @else
-                                All good! Docker is ready to use.
-                            @endunless
-                        </p>
+                                <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                                <span class="text-yellow-400">Docker Compose not found (needed for Docker mode)</span>
+                            @endif
+                        </div>
+                    </div>
+
+                    <!-- GPU -->
+                    <div class="bg-gray-800 rounded-lg p-4 mb-3">
+                        <div class="flex items-center gap-3">
+                            @if ($gpuStatus['available'] ?? false)
+                                <span class="w-3 h-3 bg-emerald-500 rounded-full"></span>
+                                <span class="text-emerald-400">GPU: {{ $gpuStatus['name'] ?? 'Unknown' }} ({{ $gpuStatus['vram_gb'] ?? 0 }} GB VRAM)</span>
+                            @else
+                                <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                                <span class="text-yellow-400">No NVIDIA GPU detected — cloud inference only</span>
+                            @endif
+                        </div>
+                        @if (!($gpuStatus['available'] ?? false))
+                            <p class="text-gray-500 text-sm mt-1">
+                                Without a GPU, the agent will use cloud providers (OpenAI/Anthropic) for inference.
+                            </p>
+                        @endif
+                    </div>
+
+                    <!-- Install mode selector -->
+                    <div class="bg-gray-800 rounded-lg p-4 mb-6">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Installation Mode</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label @class([
+                                'border rounded-lg p-3 cursor-pointer text-center text-sm',
+                                'border-emerald-600 bg-emerald-600/10 text-emerald-400' => $installMode === 'docker',
+                                'border-gray-700 text-gray-400' => $installMode !== 'docker',
+                            ])>
+                                <input type="radio" wire:model="installMode" value="docker" class="hidden">
+                                🐳 Docker<br><span class="text-xs">Recommended — isolated container</span>
+                            </label>
+                            <label @class([
+                                'border rounded-lg p-3 cursor-pointer text-center text-sm',
+                                'border-emerald-600 bg-emerald-600/10 text-emerald-400' => $installMode === 'bare-metal',
+                                'border-gray-700 text-gray-400' => $installMode !== 'bare-metal',
+                            ])>
+                                <input type="radio" wire:model="installMode" value="bare-metal" class="hidden">
+                                🖥️ Bare Metal<br><span class="text-xs">Direct install — faster, needs Python 3.11+</span>
+                            </label>
+                        </div>
                     </div>
 
                     <div class="flex gap-3">
-                        <button wire:click="checkDocker"
+                        <button wire:click="detectSystem"
                                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
                             ⟳ Recheck
                         </button>
-                        @if ($dockerDetected)
-                            <button wire:click="nextStep"
-                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
-                                Continue →
-                            </button>
-                        @endif
+                        <button wire:click="nextStep"
+                                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
+                            Continue →
+                        </button>
                     </div>
                 </div>
                 @break
 
             @case(3)
                 <div>
-                    <h2 class="text-xl font-bold text-white mb-4">Pull Kernel-Evolving Image</h2>
-                    <p class="text-gray-400 mb-6">Downloading the kernel-evolving Docker image. This may take a few minutes.</p>
+                    <h2 class="text-xl font-bold text-white mb-4">Install Agent</h2>
+                    <p class="text-gray-400 mb-6">
+                        @if ($installMode === 'docker')
+                            Cloning the kernel-evolving repository to get the Docker Compose context.
+                        @else
+                            Cloning the repository, creating a Python venv, and installing dependencies via <code class="text-emerald-400">install.sh</code>.
+                        @endif
+                    </p>
 
-                    <div class="bg-gray-800 rounded-lg p-4 mb-6">
-                        <div class="flex items-center gap-3 mb-2">
-                            <svg class="w-5 h-5 text-emerald-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                            </svg>
-                            <span class="text-sm text-gray-300">Pulling fabiopacifici/kernel-evolving:latest...</span>
+                    @if ($installLog)
+                        <div class="bg-gray-950 rounded-lg p-4 mb-4 font-mono text-xs text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap">{{ $installLog }}</div>
+                    @endif
+
+                    @if ($installed)
+                        <div class="bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-4 mb-4">
+                            <p class="text-emerald-400 font-medium">✅ Installation complete!</p>
                         </div>
-                        <div class="w-full bg-gray-700 rounded-full h-2">
-                            <div class="bg-emerald-600 h-2 rounded-full" style="width: {{ $imagePulled ? '100' : '45' }}%"></div>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">{{ $imagePulled ? 'Image pulled successfully!' : 'Downloading layers...' }}</p>
-                    </div>
+                    @endif
 
                     <div class="flex gap-3">
                         <button wire:click="previousStep"
                                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
                             ← Back
                         </button>
-                        @if ($imagePulled)
+                        @if (!$installed)
+                            <button wire:click="installAgent" wire:loading.attr="disabled"
+                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
+                                <span wire:loading wire:target="installAgent">Installing…</span>
+                                <span wire:loading.remove wire:target="installAgent">Install Now</span>
+                            </button>
+                        @else
                             <button wire:click="nextStep"
                                     class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
                                 Continue →
-                            </button>
-                        @else
-                            <button wire:click="pullImage"
-                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
-                                Pull Image
                             </button>
                         @endif
                     </div>
@@ -141,38 +216,96 @@
                     <p class="text-gray-400 mb-6">Configure your kernel-evolving instance.</p>
 
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-1">VRAM Allocation (GB)</label>
-                            <select wire:model="vram"
-                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
-                                <option value="4">4 GB</option>
-                                <option value="8">8 GB</option>
-                                <option value="12">12 GB</option>
-                                <option value="16">16 GB</option>
-                                <option value="24">24 GB</option>
-                            </select>
+                        @if ($installMode === 'bare-metal')
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Install Directory</label>
+                                <input type="text" wire:model="installDir"
+                                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">VRAM Allocation (GB)</label>
+                                <select wire:model="vram"
+                                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                                    <option value="4">4 GB</option>
+                                    <option value="8">8 GB</option>
+                                    <option value="12">12 GB</option>
+                                    <option value="16">16 GB</option>
+                                    <option value="24">24 GB</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Inference Mode</label>
+                                <select wire:model="defaultModel"
+                                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                                    <option value="local">Local (Nemotron-3B — requires GPU)</option>
+                                    <option value="cloud">Cloud (OpenAI — no GPU needed)</option>
+                                </select>
+                            </div>
+                        @else
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Repo Directory (for Docker context)</label>
+                                <input type="text" wire:model="dockerRepoDir"
+                                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                            </div>
+                        @endif
+
+                        <div class="border-t border-gray-800 pt-4">
+                            <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">AI Providers (for Tier 2 synthesis)</p>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-1">Default Model</label>
-                            <select wire:model="defaultModel"
-                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
-                                <option value="nemotron-3b">Nemotron-3B (Balanced)</option>
-                                <option value="gemma-4-e2b">Gemma 4 E2B (Fast)</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-1">OpenAI API Key (optional)</label>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">OpenAI API Key</label>
                             <input type="password" wire:model="openaiKey" placeholder="sk-..."
                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-1">OpenRouter API Key (optional)</label>
-                            <input type="password" wire:model="openrouterKey" placeholder="sk-or-..."
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Anthropic API Key (optional)</label>
+                            <input type="password" wire:model="anthropicKey" placeholder="sk-ant-..."
                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
                         </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">GitHub Token (optional)</label>
+                            <input type="password" wire:model="githubToken" placeholder="ghp_..."
+                                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">HuggingFace Token (optional)</label>
+                            <input type="password" wire:model="hfToken" placeholder="hf_..."
+                                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                        </div>
+
+                        <div class="border-t border-gray-800 pt-4">
+                            <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Telegram (optional — for bot control)</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Telegram Bot Token</label>
+                            <input type="password" wire:model="telegramBotToken" placeholder="123456:ABC-DEF..."
+                                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Your Name</label>
+                                <input type="text" wire:model="userName" placeholder="Fabio"
+                                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Telegram Chat ID</label>
+                                <input type="text" wire:model="telegramChatId" placeholder="123456789"
+                                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                            </div>
+                        </div>
+
+                        <label class="flex items-center gap-2 text-sm text-gray-300">
+                            <input type="checkbox" wire:model="evolutionEnabled" class="rounded border-gray-700 bg-gray-800 text-emerald-600">
+                            Enable autonomous skill evolution
+                        </label>
                     </div>
 
                     <div class="flex gap-3 mt-6">
@@ -190,33 +323,49 @@
 
             @case(5)
                 <div>
-                    <h2 class="text-xl font-bold text-white mb-4">Start Container</h2>
-                    <p class="text-gray-400 mb-6">Launching the kernel-evolving container...</p>
-
-                    <div class="bg-gray-800 rounded-lg p-4 mb-6 font-mono text-sm">
-                        <p class="text-gray-500">$ docker run -d --name kernel-evolving -p 8779:8779 ...</p>
-                        @if ($containerRunning)
-                            <p class="text-emerald-400 mt-2">✓ Container started on port 8779</p>
-                            <p class="text-gray-500 text-xs mt-1">Health check: OK</p>
+                    <h2 class="text-xl font-bold text-white mb-4">Start Agent</h2>
+                    <p class="text-gray-400 mb-6">
+                        @if ($installMode === 'docker')
+                            Building and starting the kernel-evolving Docker container via <code class="text-emerald-400">docker compose up</code>.
                         @else
-                            <p class="text-yellow-400 mt-2">⏳ Starting...</p>
+                            Starting the model server and API via <code class="text-emerald-400">start.sh</code>.
                         @endif
-                    </div>
+                        This may take 30-90 seconds (model loading).
+                    </p>
+
+                    @if ($startLog)
+                        <div class="bg-gray-950 rounded-lg p-4 mb-4 font-mono text-xs text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap">{{ $startLog }}</div>
+                    @endif
+
+                    @if ($started)
+                        <div class="bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-4 mb-4">
+                            <p class="text-emerald-400 font-medium">✅ kernel-evolving is running on port 8779!</p>
+                            <p class="text-gray-500 text-sm mt-1">Health check: OK</p>
+                        </div>
+                    @endif
+
+                    @if ($pollHealth && !$started)
+                        <div class="bg-yellow-900/30 border border-yellow-800/50 rounded-lg p-4 mb-4">
+                            <p class="text-yellow-400 font-medium">⏳ Waiting for API to become healthy…</p>
+                            <p class="text-gray-500 text-sm mt-1">Model is loading. This can take up to 60 seconds.</p>
+                        </div>
+                    @endif
 
                     <div class="flex gap-3">
                         <button wire:click="previousStep"
                                 class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
                             ← Back
                         </button>
-                        @if ($containerRunning)
+                        @if (!$started)
+                            <button wire:click="startAgent" wire:loading.attr="disabled"
+                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
+                                <span wire:loading wire:target="startAgent">Starting…</span>
+                                <span wire:loading.remove wire:target="startAgent">Start Agent</span>
+                            </button>
+                        @else
                             <button wire:click="nextStep"
                                     class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
                                 Continue →
-                            </button>
-                        @else
-                            <button wire:click="startContainer"
-                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
-                                Start Container
                             </button>
                         @endif
                     </div>
@@ -242,6 +391,7 @@
                                         class="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors">
                                     🔗 Pair Now
                                 </button>
+                                <p class="text-xs text-gray-600 text-center">Skip this step if you only want local access.</p>
                             </div>
                         @endif
                     </div>
@@ -255,6 +405,11 @@
                             <button wire:click="nextStep"
                                     class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
                                 Continue →
+                            </button>
+                        @else
+                            <button wire:click="nextStep"
+                                    class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                                Skip →
                             </button>
                         @endif
                     </div>
@@ -271,8 +426,9 @@
                     </p>
 
                     <div class="bg-gray-800 rounded-lg p-4 mb-6 text-left text-sm space-y-2">
-                        <p class="text-gray-400">📊 <span class="text-gray-300">Dashboard:</span> <a href="http://localhost:8779/evolution/dashboard" class="text-emerald-400 hover:underline" target="_blank">http://localhost:8779/evolution/dashboard</a></p>
-                        <p class="text-gray-400">💬 <span class="text-gray-300">Chat:</span> Open the <span class="text-emerald-400">Chat tab</span> in the sidebar</p>
+                        <p class="text-gray-400">📊 <span class="text-gray-300">Dashboard:</span> <a href="{{ route('dashboard') }}" class="text-emerald-400 hover:underline">Evolution tab</a></p>
+                        <p class="text-gray-400">💬 <span class="text-gray-300">Chat:</span> Open the <span class="text-emerald-400">Agent tab</span> in the sidebar</p>
+                        <p class="text-gray-400">🔌 <span class="text-gray-300">API:</span> <code class="text-emerald-400">http://localhost:8779</code></p>
                         <p class="text-gray-400">📱 <span class="text-gray-300">Mobile:</span> Use kernel-mobile on your phone</p>
                     </div>
 

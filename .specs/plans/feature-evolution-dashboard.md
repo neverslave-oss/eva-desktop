@@ -20,4 +20,10 @@ Blade + Livewire 4 + D3.js v7
 - Matches existing kernel-evolving HTML dashboard functionality
 
 ## Status
-[ ] Not started
+[x] Completed — 2026-07-28
+
+### Notes
+- Full evolution dashboard implemented: D3.js force-directed graph with skills/routines/replicas layers, live SSE stream, stats cards (total events, resolved, synthesised, gaps, providers), control buttons (start/pause/resume/stop/reset), task outcomes panel, and legend.
+- All JS logic extracted from kernel-evolving/src/views/evolution_dashboard.html into resources/js/dashboard.js
+- All CSS extracted into resources/css/dashboard.css
+- API calls proxy through kapi() helper to KERNEL_API_BASE (default localhost:8779)
