@@ -2,7 +2,10 @@
 
 namespace App\Livewire;
 
+use App\Services\KernelCentralService;
+use App\Services\TunnelService;
 use Livewire\Component;
+use Illuminate\Support\Facades\Log;
 
 class Settings extends Component
 {
@@ -10,17 +13,193 @@ class Settings extends Component
     public string $providerSynthesis = 'openai';
     public string $providerCritic = 'openai';
     public string $theme = 'dark';
-    public bool $paired = false;
 
-    public function mount()
+    // Pairing state
+    public bool $paired = false;
+    public ?int $deviceId = null;
+    public ?string $tunnelState = 'disconnected';
+    public ?string $lastConnectedAt = null;
+    public ?string $centralUrl = '';
+
+    // Pair form
+    public string $pairCentralUrl = '';
+    public string $pairApiToken = '';
+    public string $pairDeviceName = 'kernel-desktop';
+    public bool $pairingInProgress = false;
+    public ?string $pairError = null;
+
+    protected KernelCentralService $centralService;
+    protected ?TunnelService $tunnelService = null;
+
+    public function boot(KernelCentralService $centralService)
     {
-        // Load settings from config/database
+        $this->centralService = $centralService;
     }
 
-    public function save()
+    public function mount(): void
     {
-        // Placeholder: persist settings
+        // Load current state
+        $this->paired = $this->centralService->isPaired();
+        $this->deviceId = (int) config('kernel-desktop.device.id', 0);
+        $this->centralUrl = config('kernel-desktop.central.url', '');
+        $this->pairCentralUrl = $this->centralUrl;
+
+        // Attempt to load tunnel status from cached file
+        $this->loadTunnelStatus();
+    }
+
+    /**
+     * Save provider/appearance settings.
+     */
+    public function save(): void
+    {
+        // TODO: persist to local SQLite DB
         session()->flash('saved', true);
+    }
+
+    /**
+     * Initiate pairing with kernel-central.
+     */
+    public function initiatePair(): void
+    {
+        $this->pairError = null;
+        $this->pairingInProgress = true;
+
+        try {
+            // Update config URL if changed
+            if ($this->pairCentralUrl !== $this->centralUrl) {
+                $this->updateCentralUrl($this->pairCentralUrl);
+            }
+
+            // Test connectivity first
+            if (! $this->centralService->ping()) {
+                $this->pairError = 'Cannot reach kernel-central at ' . $this->pairCentralUrl;
+                $this->pairingInProgress = false;
+
+                return;
+            }
+
+            // Initiate device pairing
+            $result = $this->centralService->pair(
+                $this->pairDeviceName ?: 'kernel-desktop',
+                config('kernel-desktop.device.type', 'desktop'),
+                $this->pairApiToken
+            );
+
+            if (! $result['success']) {
+                $this->pairError = $result['error'] ?? 'Pairing failed';
+                $this->pairingInProgress = false;
+
+                return;
+            }
+
+            // Confirm pairing with the returned pair_token and pair_secret
+            $confirmResult = $this->centralService->confirm(
+                $result['pair_token'],
+                $result['pair_secret']
+            );
+
+            if (! $confirmResult['success']) {
+                $this->pairError = $confirmResult['error'] ?? 'Confirmation failed';
+                $this->pairingInProgress = false;
+
+                return;
+            }
+
+            // Store the device token and ID
+            $this->centralService->storeToken($confirmResult['token']);
+            $this->deviceId = $confirmResult['device_id'];
+
+            // Persist device ID to config
+            $this->persistDeviceId($this->deviceId);
+            $this->paired = true;
+
+            Log::info('Device paired with kernel-central', ['device_id' => $this->deviceId]);
+
+        } catch (\Exception $e) {
+            $this->pairError = $e->getMessage();
+            Log::error('Pairing error', ['error' => $e->getMessage()]);
+        }
+
+        $this->pairingInProgress = false;
+    }
+
+    /**
+     * Unpair from kernel-central.
+     */
+    public function unpair(): void
+    {
+        // Clear stored token
+        $this->centralService->clearToken();
+        $this->paired = false;
+        $this->deviceId = null;
+        $this->tunnelState = 'disconnected';
+
+        Log::info('Device unpaired from kernel-central');
+    }
+
+    /**
+     * Poll current tunnel status for the UI.
+     */
+    public function refreshTunnelStatus(): void
+    {
+        $this->loadTunnelStatus();
+    }
+
+    /**
+     * Load the tunnel status from the cached status file.
+     */
+    protected function loadTunnelStatus(): void
+    {
+        $statusPath = storage_path('app/tunnel-status.json');
+
+        if (file_exists($statusPath)) {
+            try {
+                $status = json_decode(file_get_contents($statusPath), true);
+
+                if ($status && isset($status['state'])) {
+                    $this->tunnelState = $status['state'];
+                    $this->lastConnectedAt = $status['connected_at'] ?? null;
+                }
+            } catch (\Exception $e) {
+                // Ignore corrupt status file
+            }
+        }
+    }
+
+    /**
+     * Update the kernel-central URL config.
+     */
+    protected function updateCentralUrl(string $url): void
+    {
+        // Write to a config override file
+        $envPath = base_path('.env');
+        if (file_exists($envPath)) {
+            $content = file_get_contents($envPath);
+            $pattern = '/^KERNEL_CENTRAL_URL=.*/m';
+            $replacement = 'KERNEL_CENTRAL_URL=' . $url;
+
+            if (preg_match($pattern, $content)) {
+                $content = preg_replace($pattern, $replacement, $content);
+            } else {
+                $content .= "\nKERNEL_CENTRAL_URL={$url}\n";
+            }
+
+            file_put_contents($envPath, $content);
+        }
+    }
+
+    /**
+     * Persist the device ID to a local config file.
+     */
+    protected function persistDeviceId(int $deviceId): void
+    {
+        $configPath = config('kernel-desktop.device.token_path', storage_path('app/device-token.txt'));
+        $idPath = dirname($configPath) . '/device-id.txt';
+        file_put_contents($idPath, (string) $deviceId);
+
+        // Also set runtime config
+        config(['kernel-desktop.device.id' => $deviceId]);
     }
 
     public function render()
