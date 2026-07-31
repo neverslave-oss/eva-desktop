@@ -375,26 +375,66 @@
             @case(6)
                 <div>
                     <h2 class="text-xl font-bold text-white mb-4">Pair with Kernel-Central</h2>
-                    <p class="text-gray-400 mb-6">Connect your local instance to kernel-central for remote access via mobile.</p>
+                    <p class="text-gray-400 mb-6">Connect this device to kernel-central for remote access, message relay, and mobile pairing.</p>
 
-                    <div class="bg-gray-800 rounded-lg p-4 mb-6">
-                        @if ($paired)
-                            <div class="text-center">
-                                <span class="text-4xl">✅</span>
-                                <p class="text-emerald-400 mt-2 font-medium">Device paired successfully!</p>
-                                <p class="text-gray-500 text-sm mt-1">Your mobile app can now reach this instance.</p>
+                    @if ($paired)
+                        {{-- Paired state --}}
+                        <div class="bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-6 mb-6 text-center">
+                            <span class="text-4xl">✅</span>
+                            <p class="text-emerald-400 mt-2 font-medium text-lg">Device paired successfully!</p>
+                            <p class="text-gray-500 text-sm mt-1">This device is registered with kernel-central. Remote access and message relay are active.</p>
+                        </div>
+
+                        <div class="bg-gray-800 rounded-lg p-4 mb-6 text-sm text-gray-400 space-y-1">
+                            <p><span class="text-gray-300">Central URL:</span> {{ $centralUrl }}</p>
+                            <p><span class="text-gray-300">Device name:</span> {{ config('kernel-desktop.device.name', 'kernel-desktop') }}</p>
+                        </div>
+                    @else
+                        {{-- Pairing form --}}
+                        <div class="bg-gray-800 rounded-lg p-6 mb-6 space-y-4">
+                            <p class="text-sm text-gray-400">
+                                To pair this device, you need an API token from kernel-central.
+                                Visit <span class="text-emerald-400">{{ rtrim($centralUrl ?: 'https://kernel-central.neverslave.dev', '/') }}/settings/tokens</span>
+                                to create one, then paste it below.
+                            </p>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Kernel-Central URL</label>
+                                <input type="url" wire:model="centralUrl" placeholder="https://kernel-central.neverslave.dev"
+                                       class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                                <p class="text-xs text-gray-600 mt-1">The URL of your kernel-central server.</p>
                             </div>
-                        @else
-                            <div class="space-y-4">
-                                <p class="text-sm text-gray-400">Click "Pair Now" to generate a pairing token and link this device to your kernel-central account.</p>
-                                <button wire:click="pairDevice"
-                                        class="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors">
-                                    🔗 Pair Now
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">API Token</label>
+                                <input type="password" wire:model="apiToken" placeholder="kc_..."
+                                       class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                                <p class="text-xs text-gray-600 mt-1">Create this in kernel-central Settings → API Tokens.</p>
+                            </div>
+
+                            {{-- Pairing status --}}
+                            @if ($pairingLabel || $pairing)
+                                <div class="flex items-center gap-2 text-sm">
+                                    @if ($pairing)
+                                        <span class="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></span>
+                                        <span class="text-emerald-400">{{ $pairingLabel }}</span>
+                                    @elseif ($paired)
+                                        <span class="text-emerald-400">{{ $pairingLabel }}</span>
+                                    @endif
+                                </div>
+                            @endif
+
+                            <div class="flex gap-2">
+                                <button wire:click="pairDevice" wire:loading.attr="disabled"
+                                        class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <span wire:loading.remove wire:target="pairDevice">🔗 Pair Device</span>
+                                    <span wire:loading wire:target="pairDevice">Pairing…</span>
                                 </button>
-                                <p class="text-xs text-gray-600 text-center">Skip this step if you only want local access.</p>
                             </div>
-                        @endif
-                    </div>
+
+                            <p class="text-xs text-gray-600">Skip this step if you only want local access. You can pair later from Settings.</p>
+                        </div>
+                    @endif
 
                     <div class="flex gap-3">
                         <button wire:click="previousStep"

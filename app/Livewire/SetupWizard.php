@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Services\KernelCentralService;
 use App\Services\KernelEvolvingService;
 use Livewire\Component;
 use Illuminate\Support\Facades\Log;
@@ -52,15 +53,25 @@ class SetupWizard extends Component
     // Polling
     public bool $pollHealth = false;
 
-    protected KernelEvolvingService $service;
+    // Kernel-central pairing
+    public string $centralUrl = '';
+    public string $apiToken = '';
+    public string $pairingLabel = '';
+    public bool $pairing = false;
+    public bool $pairingError = false;
 
-    public function boot(KernelEvolvingService $service)
+    protected KernelEvolvingService $service;
+    protected KernelCentralService $central;
+
+    public function boot(KernelEvolvingService $service, KernelCentralService $central)
     {
         $this->service = $service;
+        $this->central = $central;
     }
 
     public function mount()
     {
+        $this->centralUrl = config('kernel-desktop.central.url', '');
         $this->detectSystem();
     }
 
@@ -225,12 +236,88 @@ class SetupWizard extends Component
     }
 
     /**
-     * Step 6: Pair with kernel-central (placeholder — actual pairing via OAuth).
+     * Step 6: Pair this desktop device with kernel-central.
+     *
+     * Flow:
+     *   1. Ping kernel-central health endpoint
+     *   2. POST /api/devices/pair — create device, get pair_token + pair_secret
+     *   3. POST /api/devices/confirm — claim pairing, get Sanctum token
+     *   4. Store token locally
      */
     public function pairDevice()
     {
-        // TODO: implement kernel-central OAuth flow
-        $this->paired = true;
+        $this->pairing = true;
+        $this->pairingError = false;
+        $this->errorMessage = '';
+        $this->pairingLabel = 'Connecting to kernel-central…';
+
+        try {
+            // Step 1: Validate inputs
+            $url = trim($this->centralUrl);
+            $token = trim($this->apiToken);
+
+            if (empty($url)) {
+                throw new \RuntimeException('Please enter the kernel-central URL.');
+            }
+            if (empty($token)) {
+                throw new \RuntimeException('Please enter an API token from kernel-central Settings → API Tokens.');
+            }
+
+            // Update config runtime so KernelCentralService uses the user's URL
+            config(['kernel-desktop.central.url' => rtrim($url, '/')]);
+
+            // Step 2: Check connectivity
+            $this->pairingLabel = 'Checking connectivity…';
+            if (! $this->central->ping()) {
+                throw new \RuntimeException('Could not reach kernel-central at ' . $url . '. Make sure the URL is correct and the server is running.');
+            }
+
+            // Step 3: Initiate pairing
+            $this->pairingLabel = 'Initiating device pairing…';
+            $deviceName = config('kernel-desktop.device.name', 'kernel-desktop');
+            $deviceType = config('kernel-desktop.device.type', 'desktop');
+
+            $pairResult = $this->central->pair($deviceName, $deviceType, $token);
+
+            if (! $pairResult['success']) {
+                $apiUrl = rtrim($url, '/') . '/api/tokens';
+                throw new \RuntimeException(
+                    'Pairing failed: ' . ($pairResult['error'] ?? 'Unknown error') .
+                    '. Verify your API token is valid by visiting ' . $apiUrl
+                );
+            }
+
+            // Step 4: Confirm pairing
+            $this->pairingLabel = 'Confirming device pairing…';
+            $confirmResult = $this->central->confirm(
+                $pairResult['pair_token'],
+                $pairResult['pair_secret']
+            );
+
+            if (! $confirmResult['success']) {
+                throw new \RuntimeException(
+                    'Pairing confirmation failed: ' . ($confirmResult['error'] ?? 'Unknown error')
+                );
+            }
+
+            // Step 5: Store the Sanctum token locally
+            $this->central->storeToken($confirmResult['token']);
+
+            $this->paired = true;
+            $this->pairingLabel = '✅ Device paired successfully!';
+        } catch (\RuntimeException $e) {
+            $this->pairingError = true;
+            $this->errorMessage = $e->getMessage();
+            $this->pairingLabel = '';
+            Log::error('Device pairing failed', ['error' => $e->getMessage()]);
+        } catch (\Exception $e) {
+            $this->pairingError = true;
+            $this->errorMessage = 'An unexpected error occurred: ' . $e->getMessage();
+            $this->pairingLabel = '';
+            Log::error('Device pairing exception', ['error' => $e->getMessage()]);
+        } finally {
+            $this->pairing = false;
+        }
     }
 
     /**
