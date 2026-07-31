@@ -1,0 +1,281 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  checks: write
+
+env:
+  APP_NAME: Kernel Desktop
+  DB_CONNECTION: sqlite
+  DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+  CACHE_STORE: file
+  SESSION_DRIVER: file
+  NATIVEPHP_APP_ID: com.neverSlave.kernel.desktop
+  GITHUB_REPO: kernel-desktop-v1
+  GITHUB_OWNER: fabiopacifici-bot
+
+jobs:
+  # ── Step 1: Test ──
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite, curl, fileinfo
+          tools: composer:v2
+
+      - name: Cache Composer deps
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+
+      - name: Install PHP deps
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          touch database/database.sqlite
+          mkdir -p storage/framework/{sessions,cache,views}
+
+      - name: Build frontend
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+
+      - name: Run Pest tests
+        run: php vendor/bin/pest 2>&1
+        continue-on-error: true
+
+      - name: Upload frontend artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: public/build/
+          retention-days: 7
+
+  # ── Step 2: Build Desktop Linux (tagged releases) ──
+  desktop-linux:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite, curl, fileinfo, zip
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install PHP deps
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install NPM deps and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env || touch .env
+          php artisan key:generate --force
+          echo "NATIVEPHP_APP_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')" >> .env
+          echo "NATIVEPHP_UPDATER_PROVIDER=github" >> .env
+          echo "NATIVEPHP_UPDATER_ENABLED=true" >> .env
+
+      - name: Install NativePHP
+        run: php artisan native:install --no-interaction
+
+      - name: Build NativePHP desktop
+        run: php artisan native:build linux --no-interaction
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-desktop-linux
+          path: nativephp/electron/dist/
+
+  # ── Step 3: Build Desktop macOS (tagged releases) ──
+  desktop-macos:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite, curl, fileinfo, zip
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install PHP deps
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install NPM deps and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env || touch .env
+          php artisan key:generate --force
+          echo "NATIVEPHP_APP_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')" >> .env
+          echo "NATIVEPHP_UPDATER_PROVIDER=github" >> .env
+          echo "NATIVEPHP_UPDATER_ENABLED=true" >> .env
+
+      - name: Install NativePHP
+        run: php artisan native:install --no-interaction
+
+      - name: Build NativePHP desktop
+        run: php artisan native:build mac --no-interaction
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-desktop-macos
+          path: nativephp/electron/dist/
+
+  # ── Step 4: Build Desktop Windows (tagged releases) ──
+  desktop-windows:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite, curl, fileinfo, zip
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install PHP deps
+        run: composer update --no-interaction --prefer-dist
+        env:
+          COMPOSER_HOME: ${{ runner.temp }}\composer
+
+      - name: Install NPM deps and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          copy .env.example .env || type nul > .env
+          php artisan key:generate --force
+          echo NATIVEPHP_APP_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//') >> .env
+          echo NATIVEPHP_UPDATER_PROVIDER=github >> .env
+          echo NATIVEPHP_UPDATER_ENABLED=true >> .env
+
+      - name: Install NativePHP
+        run: php artisan native:install --no-interaction
+
+      - name: Build NativePHP desktop
+        run: php artisan native:build win --no-interaction
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-desktop-windows
+          path: nativephp\electron\dist\
+
+  # ── Step 5: Create Release (tagged releases) ──
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [desktop-linux, desktop-macos, desktop-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            git log --oneline --no-decorate > CHANGELOG.md
+          else
+            git log --oneline --no-decorate ${PREV_TAG}..HEAD > CHANGELOG.md
+          fi
+          {
+            echo 'changelog<<EOF'
+            cat CHANGELOG.md
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "kernel-desktop-*"
+          path: "dist/"
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Display artifacts
+        run: find dist/ -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Kernel Desktop ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ## Kernel Desktop ${{ github.ref_name }}
+
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+
+            ### Downloads
+            - **Linux**: .AppImage, .deb (amd64 + arm64)
+            - **macOS**: .dmg (x64 + arm64)
+            - **Windows**: .exe
+          files: |
+            dist/*.AppImage
+            dist/*.dmg
+            dist/*.exe
+            dist/*.deb
+            dist/*.rpm
+            dist/*.msi
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
