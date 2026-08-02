@@ -192,7 +192,17 @@ class SetupWizard extends Component
 
         try {
             if ($this->installMode === 'docker') {
-                $result = $this->service->startDocker($this->dockerRepoDir);
+                $result = $this->service->startDocker($this->dockerRepoDir, [
+                    'telegram_bot_token' => $this->telegramBotToken,
+                    'telegram_chat_id' => $this->telegramChatId,
+                    'user_name' => $this->userName,
+                    'user_handle' => $this->userHandle,
+                    'openai_api_key' => $this->openaiKey,
+                    'anthropic_api_key' => $this->anthropicKey,
+                    'github_token' => $this->githubToken,
+                    'hf_token' => $this->hfToken,
+                    'evolution_enabled' => $this->evolutionEnabled,
+                ]);
             } else {
                 $result = $this->service->startBareMetal($this->installDir);
             }
