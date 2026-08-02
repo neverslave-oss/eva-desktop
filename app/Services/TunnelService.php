@@ -263,6 +263,7 @@ class TunnelService
 
             if (! $data || ($data['event'] ?? '') !== 'pusher:connection_established') {
                 Log::error('Tunnel: unexpected initial response', ['response' => $data]);
+                $this->reconnectAttempts++;
                 $this->setState(self::STATE_ERROR);
 
                 return false;
@@ -273,6 +274,7 @@ class TunnelService
 
             if (! $this->socketId) {
                 Log::error('Tunnel: no socket_id in connection response');
+                $this->reconnectAttempts++;
                 $this->setState(self::STATE_ERROR);
 
                 return false;
@@ -282,6 +284,7 @@ class TunnelService
 
             // Step 2: Auth to private channel
             if (! $this->authenticateChannel()) {
+                $this->reconnectAttempts++;
                 $this->disconnect();
 
                 return false;
@@ -289,6 +292,7 @@ class TunnelService
 
             // Step 3: Subscribe to private channel
             if (! $this->subscribeChannel()) {
+                $this->reconnectAttempts++;
                 $this->disconnect();
 
                 return false;
@@ -307,12 +311,14 @@ class TunnelService
             return true;
 
         } catch (ConnectionException $e) {
+            $this->reconnectAttempts++;
             Log::error('Tunnel connection failed', ['error' => $e->getMessage()]);
             $this->setState(self::STATE_ERROR);
             $this->client = null;
 
             return false;
         } catch (\Exception $e) {
+            $this->reconnectAttempts++;
             Log::error('Tunnel unexpected error', ['error' => $e->getMessage()]);
             $this->setState(self::STATE_ERROR);
             $this->client = null;
