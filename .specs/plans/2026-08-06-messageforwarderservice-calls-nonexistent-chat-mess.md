@@ -4,7 +4,7 @@ agent: copilot
 topic: MessageForwarderService (and the sendMessage plan) target a nonexistent /chat/message endpoint
 severity: high
 tags: [copilot, cross-repo-audit, kernel-evolving]
-status: open
+status: resolved
 ---
 
 # MessageForwarderService calls a nonexistent /chat/message endpoint on kernel-evolving
