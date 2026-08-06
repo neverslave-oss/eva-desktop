@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Services\KernelCentralService;
 use App\Services\KernelEvolvingService;
+use App\Models\AppSetting;
 use Livewire\Component;
 use Illuminate\Support\Facades\Log;
 
@@ -82,9 +83,9 @@ class SetupWizard extends Component
 
     public function mount()
     {
-        $this->centralUrl = config('kernel-desktop.central.url', '');
-        $this->modelsPath = config('kernel-desktop.evolving.models_path', '');
-        $this->collectiveMemoryUrl = config('kernel-desktop.evolving.collective_memory_url', '');
+        $this->centralUrl = AppSetting::get('central_url', config('kernel-desktop.central.url', ''));
+        $this->modelsPath = AppSetting::get('models_path', config('kernel-desktop.evolving.models_path', ''));
+        $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
         $this->detectSystem();
     }
 
@@ -406,6 +407,14 @@ class SetupWizard extends Component
      */
     public function finish()
     {
+        AppSetting::set('central_url', $this->centralUrl);
+        AppSetting::set('models_path', $this->modelsPath);
+        AppSetting::set('collective_memory_url', $this->collectiveMemoryUrl);
+        AppSetting::set('telegram_bot_token', $this->telegramBotToken);
+        AppSetting::set('telegram_chat_id', $this->telegramChatId);
+        AppSetting::set('user_name', $this->userName);
+        AppSetting::set('user_handle', $this->userHandle);
+
         // XP6a: persist collective memory URL to kernel-evolving config if set
         if (!empty($this->collectiveMemoryUrl)) {
             $this->service->setCollectiveMemoryUrl($this->collectiveMemoryUrl);

@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Services\KernelCentralService;
 use App\Services\KernelEvolvingService;
 use App\Services\TunnelService;
+use App\Models\AppSetting;
 use Livewire\Component;
 use Illuminate\Support\Facades\Log;
 
@@ -56,8 +57,8 @@ class Settings extends Component
         $this->centralUrl = config('kernel-desktop.central.url', '');
         $this->pairCentralUrl = $this->centralUrl;
 
-        // XP6a: load collective memory URL from config (set during wizard) or kernel-evolving health
-        $this->collectiveMemoryUrl = config('kernel-desktop.evolving.collective_memory_url', '');
+        // XP6a: load collective memory URL from DB (set during wizard), fall back to env config
+        $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
 
         $this->loadTunnelStatus();
     }
@@ -80,6 +81,7 @@ class Settings extends Component
 
         // XP6a: persist collective memory URL if set
         if (!empty($this->collectiveMemoryUrl)) {
+            AppSetting::set('collective_memory_url', $this->collectiveMemoryUrl);
             $this->evolvingService->setCollectiveMemoryUrl($this->collectiveMemoryUrl);
         }
 
