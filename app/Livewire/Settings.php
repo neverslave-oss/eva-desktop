@@ -60,6 +60,13 @@ class Settings extends Component
         // XP6a: load collective memory URL from DB (set during wizard), fall back to env config
         $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
 
+        // XP3: load API keys from DB
+        $stored = AppSetting::many(['openai_key', 'anthropic_key', 'github_token', 'hf_token']);
+        $this->openaiKey = $stored['openai_key'] ?? '';
+        $this->anthropicKey = $stored['anthropic_key'] ?? '';
+        $this->githubToken = $stored['github_token'] ?? '';
+        $this->hfToken = $stored['hf_token'] ?? '';
+
         $this->loadTunnelStatus();
     }
 
@@ -68,7 +75,7 @@ class Settings extends Component
      */
     public function save(): void
     {
-        // XP3: push non-empty API keys to kernel-evolving
+        // XP3: push non-empty API keys to kernel-evolving and persist locally
         $keys = array_filter([
             'OPENAI_API_KEY'    => $this->openaiKey,
             'ANTHROPIC_API_KEY' => $this->anthropicKey,
@@ -77,6 +84,11 @@ class Settings extends Component
         ]);
         if (!empty($keys)) {
             $this->evolvingService->updateProviderKeys($keys);
+            // Mirror to app_settings so fields survive a page reload
+            AppSetting::set('openai_key', $this->openaiKey);
+            AppSetting::set('anthropic_key', $this->anthropicKey);
+            AppSetting::set('github_token', $this->githubToken);
+            AppSetting::set('hf_token', $this->hfToken);
         }
 
         // XP6a: persist collective memory URL if set
