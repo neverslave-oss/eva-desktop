@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Services\KernelCentralService;
 use App\Services\KernelEvolvingService;
+use App\Models\AppSetting;
 use Livewire\Component;
 use Illuminate\Support\Facades\Log;
 
@@ -40,6 +41,17 @@ class SetupWizard extends Component
     public string $userHandle = '';
     public bool $evolutionEnabled = true;
 
+    // XP2: model cache location
+    public string $modelsPath = '';
+
+    // XP6a: collective memory service
+    public string $collectiveMemoryUrl = '';
+    public string $collectiveMemoryTestResult = '';
+
+    // XP4: Telegram connection test
+    public string $telegramTestResult = '';
+    public bool $telegramTestPassed = false;
+
     // Progress tracking
     public bool $installing = false;
     public bool $installed = false;
@@ -71,7 +83,20 @@ class SetupWizard extends Component
 
     public function mount()
     {
-        $this->centralUrl = config('kernel-desktop.central.url', '');
+        $this->centralUrl = AppSetting::get('central_url', config('kernel-desktop.central.url', ''));
+        $this->modelsPath = AppSetting::get('models_path', config('kernel-desktop.evolving.models_path', ''));
+        $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
+
+        $stored = AppSetting::many(['telegram_bot_token', 'telegram_chat_id', 'user_name', 'user_handle', 'openai_key', 'anthropic_key', 'github_token', 'hf_token']);
+        $this->telegramBotToken = $stored['telegram_bot_token'] ?? '';
+        $this->telegramChatId   = $stored['telegram_chat_id'] ?? '';
+        $this->userName         = $stored['user_name'] ?? '';
+        $this->userHandle       = $stored['user_handle'] ?? '';
+        $this->openaiKey        = $stored['openai_key'] ?? '';
+        $this->anthropicKey     = $stored['anthropic_key'] ?? '';
+        $this->githubToken      = $stored['github_token'] ?? '';
+        $this->hfToken          = $stored['hf_token'] ?? '';
+
         $this->detectSystem();
     }
 
@@ -89,6 +114,62 @@ class SetupWizard extends Component
         if ($this->apiAlreadyRunning && $this->step <= 2) {
             $this->step = 7;
             $this->started = true;
+        }
+    }
+
+    // XP4: reset test state when token changes
+    public function updatedTelegramBotToken(): void
+    {
+        $this->telegramTestPassed = false;
+        $this->telegramTestResult = '';
+    }
+
+    // XP4: validate bot token against Telegram API (server-side, token never sent to JS)
+    public function testTelegramConnection(): void
+    {
+        $token = trim($this->telegramBotToken);
+        if (empty($token)) {
+            $this->telegramTestResult = 'Enter a bot token first.';
+            $this->telegramTestPassed = false;
+            return;
+        }
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(8)
+                ->get("https://api.telegram.org/bot{$token}/getMe");
+            if ($response->ok() && $response->json('ok') === true) {
+                $username = $response->json('result.username', 'unknown');
+                $this->telegramTestResult = "\u2713 Connected as @{$username}";
+                $this->telegramTestPassed = true;
+            } else {
+                $this->telegramTestResult = 'Invalid token — Telegram rejected it.';
+                $this->telegramTestPassed = false;
+            }
+        } catch (\Exception $e) {
+            $this->telegramTestResult = 'Connection failed: ' . $e->getMessage();
+            $this->telegramTestPassed = false;
+        }
+    }
+
+    // XP6a: test collective memory service reachability
+    public function testCollectiveMemory(): void
+    {
+        $url = rtrim(trim($this->collectiveMemoryUrl), '/');
+        if (empty($url)) {
+            $this->collectiveMemoryTestResult = 'Enter a URL first.';
+            return;
+        }
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(5)->get("{$url}/health");
+            if ($response->ok()) {
+                $data = $response->json();
+                $status = $data['status'] ?? 'unknown';
+                $model = ($data['model_loaded'] ?? false) ? 'model loaded' : 'no model';
+                $this->collectiveMemoryTestResult = "\u2713 Reachable — {$status}, {$model}";
+            } else {
+                $this->collectiveMemoryTestResult = "Service returned HTTP {$response->status()}";
+            }
+        } catch (\Exception $e) {
+            $this->collectiveMemoryTestResult = 'Unreachable: ' . $e->getMessage();
         }
     }
 
@@ -138,6 +219,8 @@ class SetupWizard extends Component
                     'github_token' => $this->githubToken,
                     'hf_token' => $this->hfToken,
                     'evolution_enabled' => $this->evolutionEnabled,
+                    'models_path' => $this->modelsPath,
+                    'collective_memory_url' => $this->collectiveMemoryUrl,
                 ]);
                 $this->installLog .= $envResult['message'] . "\n";
 
@@ -335,6 +418,22 @@ class SetupWizard extends Component
      */
     public function finish()
     {
+        AppSetting::set('central_url', $this->centralUrl);
+        AppSetting::set('models_path', $this->modelsPath);
+        AppSetting::set('collective_memory_url', $this->collectiveMemoryUrl);
+        AppSetting::set('telegram_bot_token', $this->telegramBotToken);
+        AppSetting::set('telegram_chat_id', $this->telegramChatId);
+        AppSetting::set('user_name', $this->userName);
+        AppSetting::set('user_handle', $this->userHandle);
+        AppSetting::set('openai_key', $this->openaiKey);
+        AppSetting::set('anthropic_key', $this->anthropicKey);
+        AppSetting::set('github_token', $this->githubToken);
+        AppSetting::set('hf_token', $this->hfToken);
+
+        // XP6a: persist collective memory URL to kernel-evolving config if set
+        if (!empty($this->collectiveMemoryUrl)) {
+            $this->service->setCollectiveMemoryUrl($this->collectiveMemoryUrl);
+        }
         return redirect()->route('dashboard');
     }
 

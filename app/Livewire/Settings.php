@@ -3,7 +3,9 @@
 namespace App\Livewire;
 
 use App\Services\KernelCentralService;
+use App\Services\KernelEvolvingService;
 use App\Services\TunnelService;
+use App\Models\AppSetting;
 use Livewire\Component;
 use Illuminate\Support\Facades\Log;
 
@@ -13,6 +15,16 @@ class Settings extends Component
     public string $providerSynthesis = 'openai';
     public string $providerCritic = 'openai';
     public string $theme = 'dark';
+
+    // XP3: API keys (pushed to kernel-evolving on save, never stored in this app)
+    public string $openaiKey = '';
+    public string $anthropicKey = '';
+    public string $githubToken = '';
+    public string $hfToken = '';
+
+    // XP6a: collective memory service URL
+    public string $collectiveMemoryUrl = '';
+    public string $collectiveMemoryTestResult = '';
 
     // Pairing state
     public bool $paired = false;
@@ -29,22 +41,32 @@ class Settings extends Component
     public ?string $pairError = null;
 
     protected KernelCentralService $centralService;
+    protected KernelEvolvingService $evolvingService;
     protected ?TunnelService $tunnelService = null;
 
-    public function boot(KernelCentralService $centralService)
+    public function boot(KernelCentralService $centralService, KernelEvolvingService $evolvingService)
     {
         $this->centralService = $centralService;
+        $this->evolvingService = $evolvingService;
     }
 
     public function mount(): void
     {
-        // Load current state
         $this->paired = $this->centralService->isPaired();
         $this->deviceId = (int) config('kernel-desktop.device.id', 0);
         $this->centralUrl = config('kernel-desktop.central.url', '');
         $this->pairCentralUrl = $this->centralUrl;
 
-        // Attempt to load tunnel status from cached file
+        // XP6a: load collective memory URL from DB (set during wizard), fall back to env config
+        $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
+
+        // XP3: load API keys from DB
+        $stored = AppSetting::many(['openai_key', 'anthropic_key', 'github_token', 'hf_token']);
+        $this->openaiKey = $stored['openai_key'] ?? '';
+        $this->anthropicKey = $stored['anthropic_key'] ?? '';
+        $this->githubToken = $stored['github_token'] ?? '';
+        $this->hfToken = $stored['hf_token'] ?? '';
+
         $this->loadTunnelStatus();
     }
 
@@ -53,8 +75,52 @@ class Settings extends Component
      */
     public function save(): void
     {
-        // TODO: persist to local SQLite DB
+        // XP3: push non-empty API keys to kernel-evolving and persist locally
+        $keys = array_filter([
+            'OPENAI_API_KEY'    => $this->openaiKey,
+            'ANTHROPIC_API_KEY' => $this->anthropicKey,
+            'GITHUB_TOKEN'      => $this->githubToken,
+            'HF_TOKEN'          => $this->hfToken,
+        ]);
+        if (!empty($keys)) {
+            $this->evolvingService->updateProviderKeys($keys);
+            // Mirror to app_settings so fields survive a page reload
+            AppSetting::set('openai_key', $this->openaiKey);
+            AppSetting::set('anthropic_key', $this->anthropicKey);
+            AppSetting::set('github_token', $this->githubToken);
+            AppSetting::set('hf_token', $this->hfToken);
+        }
+
+        // XP6a: persist collective memory URL if set
+        if (!empty($this->collectiveMemoryUrl)) {
+            AppSetting::set('collective_memory_url', $this->collectiveMemoryUrl);
+            $this->evolvingService->setCollectiveMemoryUrl($this->collectiveMemoryUrl);
+        }
+
         session()->flash('saved', true);
+    }
+
+    // XP6a: test collective memory service reachability
+    public function testCollectiveMemory(): void
+    {
+        $url = rtrim(trim($this->collectiveMemoryUrl), '/');
+        if (empty($url)) {
+            $this->collectiveMemoryTestResult = 'Enter a URL first.';
+            return;
+        }
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(5)->get("{$url}/health");
+            if ($response->ok()) {
+                $data = $response->json();
+                $status = $data['status'] ?? 'unknown';
+                $model = ($data['model_loaded'] ?? false) ? 'model loaded' : 'no model';
+                $this->collectiveMemoryTestResult = "\u2713 Reachable — {$status}, {$model}";
+            } else {
+                $this->collectiveMemoryTestResult = 'Service returned HTTP ' . $response->status();
+            }
+        } catch (\Exception $e) {
+            $this->collectiveMemoryTestResult = 'Unreachable: ' . $e->getMessage();
+        }
     }
 
     /**
