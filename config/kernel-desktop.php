@@ -12,7 +12,7 @@ return [
     |
     */
     'central' => [
-        'url' => env('KERNEL_CENTRAL_URL', 'https://kernel-central.neverslave.dev'),
+        'url' => env('KERNEL_CENTRAL_URL', 'https://kernel-central.neverslave.com'),
         'api_prefix' => '/api',
     ],
 
