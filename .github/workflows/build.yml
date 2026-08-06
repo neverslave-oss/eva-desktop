@@ -50,6 +50,7 @@ jobs:
           php artisan key:generate --force
           touch database/database.sqlite
           mkdir -p storage/framework/{sessions,cache,views}
+          php artisan migrate --force
 
       - name: Build frontend
         run: |

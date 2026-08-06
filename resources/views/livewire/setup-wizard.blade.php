@@ -1,4 +1,5 @@
-<div class="max-w-2xl mx-auto py-8" wire:poll="{{ $pollHealth ? 'pollApiHealth' : null }}">
+<div class="max-w-2xl mx-auto py-8"
+     wire:poll.3000ms="{{ $pollInstall ? 'pollInstallLog' : ($pollStart ? 'pollStartLog' : ($pollHealth ? 'pollApiHealth' : null)) }}">
     <!-- Progress Bar -->
     <div class="mb-8">
         <div class="flex items-center justify-between mb-2">
@@ -171,34 +172,51 @@
             @case(3)
                 <div>
                     <h2 class="text-xl font-bold text-white mb-4">Install Agent</h2>
-                    <p class="text-gray-400 mb-6">
+                    <p class="text-gray-400 mb-4">
                         @if ($installMode === 'docker')
-                            Cloning the kernel-evolving repository to get the Docker Compose context.
+                            Cloning the kernel-evolving repository to prepare the Docker Compose context.
                         @else
-                            Cloning the repository, creating a Python venv, and installing dependencies via <code class="text-emerald-400">install.sh</code>.
+                            Cloning the repository, creating a Python venv, and installing dependencies via <code class="text-emerald-400">install.sh</code>. This may take 3–8 minutes.
                         @endif
                     </p>
 
+                    @if ($installing || $pollInstall)
+                        <div class="flex items-center gap-2 text-sm text-emerald-400 mb-3">
+                            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                            </svg>
+                            Installing… (output streams below)
+                        </div>
+                    @endif
+
                     @if ($installLog)
-                        <div class="bg-gray-950 rounded-lg p-4 mb-4 font-mono text-xs text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap">{{ $installLog }}</div>
+                        <div id="install-log"
+                             class="bg-gray-950 rounded-lg p-4 mb-4 font-mono text-xs text-gray-400 max-h-64 overflow-y-auto whitespace-pre-wrap"
+                             x-data
+                             x-init="$el.scrollTop = $el.scrollHeight"
+                             x-effect="$el.scrollTop = $el.scrollHeight">{{ $installLog }}</div>
                     @endif
 
                     @if ($installed)
-                        <div class="bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-4 mb-4">
-                            <p class="text-emerald-400 font-medium">✅ Installation complete!</p>
+                        <div class="bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-3 mb-4">
+                            <p class="text-emerald-400 font-medium text-sm">✅ Installation complete!</p>
                         </div>
                     @endif
 
                     <div class="flex gap-3">
-                        <button wire:click="previousStep"
-                                class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                        <button wire:click="previousStep" @disabled($installing || $pollInstall)
+                                class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors disabled:opacity-40">
                             ← Back
                         </button>
                         @if (!$installed)
                             <button wire:click="installAgent" wire:loading.attr="disabled"
-                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
-                                <span wire:loading wire:target="installAgent">Installing…</span>
-                                <span wire:loading.remove wire:target="installAgent">Install Now</span>
+                                    @disabled($pollInstall)
+                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors disabled:opacity-40">
+                                <span wire:loading wire:target="installAgent">Starting…</span>
+                                <span wire:loading.remove wire:target="installAgent">
+                                    {{ $pollInstall ? 'Installing…' : 'Install Now' }}
+                                </span>
                             </button>
                         @else
                             <button wire:click="nextStep"
@@ -245,9 +263,39 @@
                             </div>
                         @else
                             <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-1">Repo Directory (for Docker context)</label>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Repo Directory (Docker context)</label>
                                 <input type="text" wire:model="dockerRepoDir"
                                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                                <p class="text-xs text-gray-600 mt-1">kernel-evolving will be cloned here for the docker-compose context.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">VRAM Allocation (GB)</label>
+                                <select wire:model="vram"
+                                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                                    <option value="4">4 GB</option>
+                                    <option value="8">8 GB</option>
+                                    <option value="12">12 GB</option>
+                                    <option value="16">16 GB</option>
+                                    <option value="24">24 GB</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Inference Mode</label>
+                                <select wire:model="defaultModel"
+                                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                                    <option value="local">Local (Nemotron-3B — requires GPU)</option>
+                                    <option value="cloud">Cloud (OpenAI — no GPU needed)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Model Cache Path (optional)</label>
+                                <input type="text" wire:model="modelsPath" placeholder="~/.cache/huggingface"
+                                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                                <p class="text-xs text-gray-600 mt-1">Mounted as the HuggingFace model cache inside the container.</p>
+                            </div>
                             </div>
                         @endif
 
@@ -324,43 +372,51 @@
             @case(5)
                 <div>
                     <h2 class="text-xl font-bold text-white mb-4">Start Agent</h2>
-                    <p class="text-gray-400 mb-6">
+                    <p class="text-gray-400 mb-4">
                         @if ($installMode === 'docker')
-                            Building and starting the kernel-evolving Docker container via <code class="text-emerald-400">docker compose up</code>.
+                            Building and starting the kernel-evolving container via <code class="text-emerald-400">docker compose up --build</code>. First build may take several minutes.
                         @else
-                            Starting the model server and API via <code class="text-emerald-400">start.sh</code>.
+                            Starting the model server and API via <code class="text-emerald-400">start.sh</code>. Model loading takes ~60–90s.
                         @endif
-                        This may take 30-90 seconds (model loading).
                     </p>
 
+                    @if ($starting || $pollStart)
+                        <div class="flex items-center gap-2 text-sm text-emerald-400 mb-3">
+                            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                            </svg>
+                            Starting… watching for health check
+                        </div>
+                    @endif
+
                     @if ($startLog)
-                        <div class="bg-gray-950 rounded-lg p-4 mb-4 font-mono text-xs text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap">{{ $startLog }}</div>
+                        <div id="start-log"
+                             class="bg-gray-950 rounded-lg p-4 mb-4 font-mono text-xs text-gray-400 max-h-64 overflow-y-auto whitespace-pre-wrap"
+                             x-data
+                             x-init="$el.scrollTop = $el.scrollHeight"
+                             x-effect="$el.scrollTop = $el.scrollHeight">{{ $startLog }}</div>
                     @endif
 
                     @if ($started)
                         <div class="bg-emerald-900/30 border border-emerald-800/50 rounded-lg p-4 mb-4">
-                            <p class="text-emerald-400 font-medium">✅ kernel-evolving is running on port 8779!</p>
-                            <p class="text-gray-500 text-sm mt-1">Health check: OK</p>
-                        </div>
-                    @endif
-
-                    @if ($pollHealth && !$started)
-                        <div class="bg-yellow-900/30 border border-yellow-800/50 rounded-lg p-4 mb-4">
-                            <p class="text-yellow-400 font-medium">⏳ Waiting for API to become healthy…</p>
-                            <p class="text-gray-500 text-sm mt-1">Model is loading. This can take up to 60 seconds.</p>
+                            <p class="text-emerald-400 font-medium text-sm">✅ kernel-evolving is running on port {{ \App\Services\KernelEvolvingService::PORT }}!</p>
                         </div>
                     @endif
 
                     <div class="flex gap-3">
-                        <button wire:click="previousStep"
-                                class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors">
+                        <button wire:click="previousStep" @disabled($starting || $pollStart)
+                                class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors disabled:opacity-40">
                             ← Back
                         </button>
                         @if (!$started)
                             <button wire:click="startAgent" wire:loading.attr="disabled"
-                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors">
+                                    @disabled($pollStart)
+                                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm transition-colors disabled:opacity-40">
                                 <span wire:loading wire:target="startAgent">Starting…</span>
-                                <span wire:loading.remove wire:target="startAgent">Start Agent</span>
+                                <span wire:loading.remove wire:target="startAgent">
+                                    {{ $pollStart ? 'Waiting for health…' : 'Start Agent' }}
+                                </span>
                             </button>
                         @else
                             <button wire:click="nextStep"

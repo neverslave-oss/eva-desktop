@@ -216,6 +216,22 @@ class KernelEvolvingService
     }
 
     /**
+     * Public wrapper so Livewire can resolve ~ paths without shell_exec.
+     */
+    public function expandInstallPath(string $path): string
+    {
+        return $this->expandPath($path);
+    }
+
+    /**
+     * Public wrapper for writeDockerEnvFile used by the async start flow.
+     */
+    public function writeDockerEnvFilePublic(string $envPath, array $config = []): void
+    {
+        $this->writeDockerEnvFile($envPath, $config);
+    }
+
+    /**
      * XP6a: Write collective_memory.url into kernel-evolving's config.yaml.
      * Reads the current config.yaml, sets the url key, writes it back.
      */
@@ -408,7 +424,14 @@ class KernelEvolvingService
             'HF_TOKEN=' . ($config['hf_token'] ?? ''),
             '',
             'EVOLUTION_ENABLED=' . (($config['evolution_enabled'] ?? true) ? 'true' : 'false'),
-            '# MODELS_PATH=~/.cache/huggingface',
+            '',
+            // docker-compose.yml volume: ${MODELS_PATH:-~/.cache/huggingface}:/models
+            ($config['models_path'] ?? '') !== ''
+                ? 'MODELS_PATH=' . $config['models_path']
+                : '# MODELS_PATH=~/.cache/huggingface',
+            ($config['collective_memory_url'] ?? '') !== ''
+                ? 'COLLECTIVE_MEMORY_URL=' . $config['collective_memory_url']
+                : '# COLLECTIVE_MEMORY_URL=',
         ];
         File::put($path, implode("\n", $lines) . "\n");
     }
