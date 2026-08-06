@@ -195,7 +195,15 @@ class KernelEvolvingService
             'EVOLUTION_ENABLED=' . ($config['evolution_enabled'] ? 'true' : 'false'),
             '',
             '# === Model cache (optional) ===',
-            '# MODELS_PATH=' . ($config['models_path'] ?? '/path/to/huggingface/cache'),
+            '# Uncomment to override where Hugging Face models are stored.',
+            ($config['models_path'] ?? '') !== ''
+                ? 'HF_HOME=' . ($config['models_path'])
+                : '# HF_HOME=~/.cache/huggingface',
+            '',
+            '# === Collective memory service (optional) ===',
+            ($config['collective_memory_url'] ?? '') !== ''
+                ? 'COLLECTIVE_MEMORY_URL=' . ($config['collective_memory_url'])
+                : '# COLLECTIVE_MEMORY_URL=http://<host>:8010',
         ];
 
         File::put($envPath, implode("\n", $lines) . "\n");
@@ -208,7 +216,56 @@ class KernelEvolvingService
     }
 
     /**
-     * Write a config.yaml override for bare-metal mode.
+     * XP6a: Write collective_memory.url into kernel-evolving's config.yaml.
+     * Reads the current config.yaml, sets the url key, writes it back.
+     */
+    public function setCollectiveMemoryUrl(string $url): array
+    {
+        $installDir = config('kernel-desktop.evolving.install_dir', '~/.kernel-evolving');
+        $configPath = $this->expandPath($installDir) . '/config.yaml';
+
+        if (!File::exists($configPath)) {
+            return ['success' => false, 'message' => 'config.yaml not found at ' . $configPath];
+        }
+
+        try {
+            $content = File::get($configPath);
+            // Replace or insert collective_memory.url
+            if (preg_match('/^collective_memory:/m', $content)) {
+                $content = preg_replace(
+                    '/(collective_memory:\s*\n\s*url:\s*)\S+/m',
+                    '${1}' . $url,
+                    $content
+                );
+            } else {
+                $content .= "\ncollective_memory:\n  url: {$url}\n";
+            }
+            File::put($configPath, $content);
+            return ['success' => true, 'message' => 'collective_memory.url updated in config.yaml'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * XP3: Update provider API keys in kernel-evolving via its /config endpoint.
+     * $keys is an associative array of env-var-name => value.
+     */
+    public function updateProviderKeys(array $keys): array
+    {
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(10)
+                ->post(self::BASE_URL . '/config/env', ['keys' => $keys]);
+            if ($response->successful()) {
+                return ['success' => true, 'message' => 'Provider keys updated'];
+            }
+            return ['success' => false, 'message' => 'API returned HTTP ' . $response->status()];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Adjusts model path, VRAM, and provider settings based on user config.
      */
     public function writeConfigYaml(string $installDir, array $config): array

@@ -61,5 +61,8 @@ return [
     'evolving' => [
         'url' => env('KERNEL_EVOLVING_URL', 'http://localhost:8779'),
         'timeout' => (int) env('KERNEL_EVOLVING_TIMEOUT', 30),
+        'install_dir' => env('KERNEL_EVOLVING_INSTALL_DIR', '~/.kernel-evolving'),
+        'models_path' => env('KERNEL_EVOLVING_MODELS_PATH', ''),
+        'collective_memory_url' => env('KERNEL_COLLECTIVE_MEMORY_URL', ''),
     ],
 ];
