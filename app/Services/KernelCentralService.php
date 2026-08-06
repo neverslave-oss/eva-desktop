@@ -31,7 +31,7 @@ class KernelCentralService
      */
     protected function apiUrl(string $path): string
     {
-        $base = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.dev');
+        $base = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.com');
         return rtrim($base, '/') . '/api' . $path;
     }
 
@@ -69,6 +69,13 @@ class KernelCentralService
 
             if ($response->successful()) {
                 $data = $response->json('data');
+
+                if (! is_array($data)) {
+                    return [
+                        'success' => false,
+                        'error' => 'Unexpected API response format',
+                    ];
+                }
 
                 return [
                     'success' => true,
@@ -122,6 +129,13 @@ class KernelCentralService
 
             if ($response->successful()) {
                 $data = $response->json('data');
+
+                if (! is_array($data)) {
+                    return [
+                        'success' => false,
+                        'error' => 'Unexpected API response format',
+                    ];
+                }
 
                 return [
                     'success' => true,
