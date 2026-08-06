@@ -4,7 +4,7 @@ agent: scout
 topic: TunnelService::$reconnectAttempts never incremented — exponential backoff always 1 second
 severity: high
 tags: [scout, agent-ready]
-status: open
+status: resolved
 ---
 
 # TunnelService::$reconnectAttempts never incremented — exponential backoff always 1 second
