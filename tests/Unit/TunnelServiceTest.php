@@ -12,7 +12,7 @@ function wsEndpoint(TunnelService $tunnel): string
 }
 
 test('standard https port 443 is omitted from url', function () {
-    config(['kernel-desktop.central.url' => 'https://kernel-central.neverslave.com']);
+    config(['kernel-desktop.central.url' => 'https://kernel-central.test']);
     config(['kernel-desktop.reverb.host' => '']);
     config(['kernel-desktop.reverb.port' => 443]);
     config(['kernel-desktop.reverb.app_key' => 'appkey']);
@@ -34,7 +34,7 @@ test('standard http port 80 is omitted from url', function () {
 });
 
 test('custom port is appended to url', function () {
-    config(['kernel-desktop.central.url' => 'https://kernel-central.neverslave.com']);
+    config(['kernel-desktop.central.url' => 'https://kernel-central.test']);
     config(['kernel-desktop.reverb.host' => '']);
     config(['kernel-desktop.reverb.port' => 8080]);
     config(['kernel-desktop.reverb.app_key' => 'appkey']);
@@ -45,7 +45,7 @@ test('custom port is appended to url', function () {
 });
 
 test('explicit reverb host takes precedence', function () {
-    config(['kernel-desktop.central.url' => 'https://kernel-central.neverslave.com']);
+    config(['kernel-desktop.central.url' => 'https://kernel-central.test']);
     config(['kernel-desktop.reverb.host' => 'reverb.local']);
     config(['kernel-desktop.reverb.port' => 8080]);
     config(['kernel-desktop.reverb.scheme' => 'ws']);

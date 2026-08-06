@@ -4,7 +4,7 @@ use App\Services\KernelCentralService;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
-    config(['kernel-desktop.central.url' => 'https://kernel-central.neverslave.com']);
+    config(['kernel-desktop.central.url' => 'https://kernel-central.test']);
 });
 
 test('pair returns pair token and secret on success', function () {
