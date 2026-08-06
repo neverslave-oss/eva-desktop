@@ -4,7 +4,7 @@ agent: scout
 topic: startDocker() writes hardcoded placeholder .env, ignoring all SetupWizard user config
 severity: high
 tags: [scout, agent-ready]
-status: open
+status: resolved
 ---
 
 # startDocker() writes hardcoded placeholder .env, ignoring all SetupWizard user config

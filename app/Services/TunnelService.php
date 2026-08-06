@@ -107,7 +107,7 @@ class TunnelService
      */
     protected function wsEndpoint(): string
     {
-        $centralUrl = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.dev');
+        $centralUrl = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.com');
         $reverbHost = config('kernel-desktop.reverb.host', '');
         $reverbPort = config('kernel-desktop.reverb.port', 8080);
         $appKey = config('kernel-desktop.reverb.app_key', '');
@@ -124,8 +124,8 @@ class TunnelService
         // Derive from central URL: replace https:// with wss://
         $parsed = parse_url($centralUrl);
         $scheme = ($parsed['scheme'] ?? 'https') === 'https' ? 'wss' : 'ws';
-        $host = $parsed['host'] ?? 'kernel-central.neverslave.dev';
-        $port = $reverbPort ? ":{$reverbPort}" : ($reverbPort === 80 || $reverbPort === 443 ? '' : ':8080');
+        $host = $parsed['host'] ?? 'kernel-central.neverslave.com';
+        $port = ($reverbPort && $reverbPort !== 80 && $reverbPort !== 443) ? ":{$reverbPort}" : '';
 
         return "{$scheme}://{$host}{$port}/app/{$appKey}";
     }
@@ -135,7 +135,7 @@ class TunnelService
      */
     protected function authUrl(): string
     {
-        $base = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.dev');
+        $base = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.com');
 
         return rtrim($base, '/') . '/api/broadcasting/auth';
     }

@@ -4,7 +4,7 @@ agent: scout
 topic: Chat.sendMessage() is a stub — no API call to kernel-evolving
 severity: high
 tags: [scout, agent-ready]
-status: open
+status: resolved
 ---
 
 # Chat.sendMessage() is a stub — no API call to kernel-evolving

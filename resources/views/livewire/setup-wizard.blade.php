@@ -394,13 +394,13 @@
                         <div class="bg-gray-800 rounded-lg p-6 mb-6 space-y-4">
                             <p class="text-sm text-gray-400">
                                 To pair this device, you need an API token from kernel-central.
-                                Visit <span class="text-emerald-400">{{ rtrim($centralUrl ?: 'https://kernel-central.neverslave.dev', '/') }}/settings/tokens</span>
+                                Visit <span class="text-emerald-400">{{ rtrim($centralUrl ?: 'https://kernel-central.neverslave.com', '/') }}/settings/tokens</span>
                                 to create one, then paste it below.
                             </p>
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-300 mb-1">Kernel-Central URL</label>
-                                <input type="url" wire:model="centralUrl" placeholder="https://kernel-central.neverslave.dev"
+                                <input type="url" wire:model="centralUrl" placeholder="https://kernel-central.neverslave.com"
                                        class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
                                 <p class="text-xs text-gray-600 mt-1">The URL of your kernel-central server.</p>
                             </div>

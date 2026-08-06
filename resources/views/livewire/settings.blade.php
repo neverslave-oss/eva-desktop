@@ -161,7 +161,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-300 mb-1">Kernel-Central URL</label>
                     <input type="url" wire:model="pairCentralUrl"
-                           placeholder="https://kernel-central.neverslave.dev"
+                           placeholder="https://kernel-central.neverslave.com"
                            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
                 </div>
 
