@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
  *
  * Architecture:
  *   Mobile → kernel-central (relay API) → Reverb WS → TunnelService
- *   → MessageForwarder → kernel-evolving:8779/chat → response
+ *   → MessageForwarder → kernel-evolving:8779/message → response
  *   → TunnelService → Reverb WS → kernel-central → mobile
  */
 class MessageForwarderService
@@ -63,6 +63,7 @@ class MessageForwarderService
 
         $relayId = $payload['relay_id'] ?? '';
         $message = $payload['message'] ?? '';
+        $chatId = $payload['chat_id'] ?? '';
 
         if (! $relayId || ! $message) {
             Log::warning('Forwarder: invalid relay payload', ['payload' => $payload]);
@@ -77,7 +78,7 @@ class MessageForwarderService
 
         try {
             // Forward to kernel-evolving
-            $response = $this->forwardToKernelEvolving($message);
+            $response = $this->forwardToKernelEvolving($message, $chatId);
 
             // Send response back through tunnel
             $this->sendResponse($tunnel, $relayId, $response);
@@ -100,14 +101,14 @@ class MessageForwarderService
     /**
      * Forward a message to the local kernel-evolving instance.
      *
-     * Uses the chat endpoint (POST /chat/message) which is the standard
-     * text-only interaction with kernel-evolving.
+     * Uses the message endpoint (POST /message) which is kernel-evolving's
+     * standard text-only interaction endpoint.
      *
      * @return array{success: bool, response: string, error?: string}
      */
-    protected function forwardToKernelEvolving(string $message): array
+    protected function forwardToKernelEvolving(string $message, string $chatId = ''): array
     {
-        $url = $this->evolvingUrl . '/chat/message';
+        $url = $this->evolvingUrl . '/message';
 
         Log::debug('Forwarder: calling kernel-evolving', ['url' => $url]);
 
@@ -115,12 +116,12 @@ class MessageForwarderService
             $response = Http::timeout($this->timeout)
                 ->post($url, [
                     'message' => $message,
-                    'source' => 'kernel-mobile-v2',
+                    'chat_id' => $chatId,
                 ]);
 
             if ($response->successful()) {
                 $body = $response->json();
-                $responseText = $body['response'] ?? $body['message'] ?? $body['text'] ?? '';
+                $responseText = $body['reply'] ?? '';
 
                 return [
                     'success' => true,

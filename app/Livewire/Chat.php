@@ -4,12 +4,19 @@ namespace App\Livewire;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class Chat extends Component
 {
     public string $message = '';
     public array $messages = [];
+    public string $chatId = '';
+
+    public function mount(): void
+    {
+        $this->chatId = (string) Str::uuid();
+    }
 
     public function sendMessage()
     {
@@ -34,14 +41,14 @@ class Chat extends Component
             $timeout = (int) config('kernel-desktop.evolving.timeout', 30);
 
             $response = Http::timeout($timeout)
-                ->post($evolvingUrl . '/chat/message', [
+                ->post($evolvingUrl . '/message', [
                     'message' => $text,
-                    'source' => 'kernel-desktop-v1',
+                    'chat_id' => $this->chatId,
                 ]);
 
             if ($response->successful()) {
                 $body = $response->json();
-                $responseText = $body['response'] ?? $body['message'] ?? $body['text'] ?? 'No response';
+                $responseText = $body['reply'] ?? 'No response';
             } else {
                 $responseText = 'Error: kernel-evolving returned status ' . $response->status();
                 Log::warning('Chat: kernel-evolving error', [
