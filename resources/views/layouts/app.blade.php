@@ -32,8 +32,14 @@
 
     @livewireScripts
     <script>
-        // Set the kernel-evolving API base URL (configured by setup wizard)
-        window.KERNEL_API_BASE = window.KERNEL_API_BASE || 'http://localhost:8779';
+        // Use 127.0.0.1 to avoid localhost vs 127.0.0.1 CORS mismatch in dev
+        window.KERNEL_API_BASE = window.KERNEL_API_BASE || 'http://127.0.0.1:8779';
+
+        // Belt-and-suspenders: also trigger init on Livewire's navigate event
+        // from the layout (guaranteed non-module scope, fires after DOM swap)
+        document.addEventListener('livewire:navigated', function() {
+            if (typeof window.initCurrentPage === 'function') window.initCurrentPage();
+        });
     </script>
 </body>
 </html>

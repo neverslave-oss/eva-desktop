@@ -83,6 +83,7 @@
                 <button class="agent-command-chip" data-command="/new">/new</button>
                 <button class="agent-command-chip" data-command="/evolve">/evolve</button>
                 <button class="agent-command-chip" data-command="/version">/version</button>
+                <button class="agent-command-chip" data-command="/fresh">/fresh</button>
             </div>
         </div>
         <div class="agent-provider-sheet" id="agent-provider-sheet" aria-hidden="true">

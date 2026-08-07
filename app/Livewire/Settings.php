@@ -26,6 +26,13 @@ class Settings extends Component
     public string $collectiveMemoryUrl = '';
     public string $collectiveMemoryTestResult = '';
 
+    // Local model storage (HuggingFace hub-cache layout: models--org--repo)
+    public string $modelsRoot = '';
+    public string $modelsBrowsePath = '';
+    public array $localModels = [];
+    public array $modelsBreadcrumbs = [];
+    public string $modelsScanMsg = '';
+
     // Auto-updater
     public string $updateChannel = 'latest';
     public string $updateFrequency = 'startup';
@@ -66,6 +73,17 @@ class Settings extends Component
         // XP6a: load collective memory URL from DB (set during wizard), fall back to env config
         $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
 
+        // Load current provider routing from kernel-evolving
+        try {
+            $routing = \Illuminate\Support\Facades\Http::timeout(3)->get('http://127.0.0.1:8779/provider')->json();
+            $r = $routing['routing'] ?? [];
+            if (!empty($r['task_inference']['provider'])) $this->providerTaskInference = $r['task_inference']['provider'];
+            if (!empty($r['synthesis']['provider']))      $this->providerSynthesis = $r['synthesis']['provider'];
+            if (!empty($r['critic']['provider']))         $this->providerCritic = $r['critic']['provider'];
+        } catch (\Exception $e) {
+            Log::debug('Settings: could not load provider routing: ' . $e->getMessage());
+        }
+
         // XP3: load API keys from DB
         $stored = AppSetting::many(['openai_key', 'anthropic_key', 'github_token', 'hf_token']);
         $this->openaiKey = $stored['openai_key'] ?? '';
@@ -73,7 +91,159 @@ class Settings extends Component
         $this->githubToken = $stored['github_token'] ?? '';
         $this->hfToken = $stored['hf_token'] ?? '';
 
+        $this->modelsRoot = AppSetting::get('models_root', $this->guessModelsRoot());
+        $this->scanModels();
+
         $this->loadTunnelStatus();
+    }
+
+    /**
+     * Best-effort guess at the local HuggingFace hub cache directory.
+     */
+    protected function guessModelsRoot(): string
+    {
+        $home = getenv('HOME') ?: getenv('USERPROFILE') ?: '';
+        foreach ([getenv('HF_HOME'), $home ? $home . '/.cache/huggingface/hub' : null] as $candidate) {
+            if ($candidate && is_dir($candidate)) {
+                return $candidate;
+            }
+        }
+        return $home ? $home . '/.cache/huggingface/hub' : '';
+    }
+
+    protected function expandHome(string $path): string
+    {
+        if (str_starts_with($path, '~')) {
+            $home = getenv('HOME') ?: getenv('USERPROFILE') ?: '';
+            return $home . substr($path, 1);
+        }
+        return $path;
+    }
+
+    protected function humanSize(int $bytes): string
+    {
+        if ($bytes < 1024) return $bytes . ' B';
+        if ($bytes < 1048576) return round($bytes / 1024, 1) . ' KB';
+        if ($bytes < 1073741824) return round($bytes / 1048576, 1) . ' MB';
+        return round($bytes / 1073741824, 2) . ' GB';
+    }
+
+    protected function dirSize(string $dir): int
+    {
+        $size = 0;
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS)
+            );
+            foreach ($iterator as $file) {
+                if ($file->isFile()) $size += $file->getSize();
+            }
+        } catch (\Exception $e) {
+            // Unreadable subdirectory — skip.
+        }
+        return $size;
+    }
+
+    /**
+     * Save the configured models directory and rescan it.
+     */
+    public function saveModelsRoot(): void
+    {
+        AppSetting::set('models_root', $this->modelsRoot);
+        $this->modelsBrowsePath = '';
+        $this->scanModels();
+    }
+
+    /**
+     * Navigate into a subdirectory (relative to modelsRoot) and rescan.
+     */
+    public function browseModelsFolder(string $relPath): void
+    {
+        $this->modelsBrowsePath = trim($relPath, '/');
+        $this->scanModels();
+    }
+
+    /**
+     * Navigate up one directory level.
+     */
+    public function browseModelsUp(): void
+    {
+        $parts = array_filter(explode('/', $this->modelsBrowsePath));
+        array_pop($parts);
+        $this->modelsBrowsePath = implode('/', $parts);
+        $this->scanModels();
+    }
+
+    /**
+     * Scan the configured directory (plus any browsed sub-path) for locally
+     * downloaded models. Recognises the HuggingFace hub cache layout
+     * (models--org--repo) and falls back to listing plain subdirectories.
+     */
+    public function scanModels(): void
+    {
+        $this->modelsScanMsg = '';
+        $this->localModels = [];
+
+        $base = $this->expandHome($this->modelsRoot);
+        $root = $this->modelsBrowsePath !== ''
+            ? rtrim($base, '/') . '/' . $this->modelsBrowsePath
+            : $base;
+
+        if (! $root || ! is_dir($root)) {
+            $this->modelsScanMsg = 'Directory not found.';
+            $this->modelsBreadcrumbs = [];
+            return;
+        }
+
+        // Build breadcrumb trail: [['label' => ..., 'path' => ...], ...]
+        $this->modelsBreadcrumbs = [];
+        $accum = [];
+        foreach (array_filter(explode('/', $this->modelsBrowsePath)) as $segment) {
+            $accum[] = $segment;
+            $this->modelsBreadcrumbs[] = ['label' => $segment, 'path' => implode('/', $accum)];
+        }
+
+        $entries = @scandir($root) ?: [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            $full = $root . DIRECTORY_SEPARATOR . $entry;
+            if (! is_dir($full)) continue;
+
+            $isModel = str_starts_with($entry, 'models--');
+            $size = $this->dirSize($full);
+            $label = $isModel ? str_replace('--', '/', substr($entry, 8)) : $entry;
+            $relPath = $this->modelsBrowsePath !== '' ? $this->modelsBrowsePath . '/' . $entry : $entry;
+
+            $this->localModels[] = [
+                'name' => $label,
+                'raw' => $entry,
+                'rel_path' => $relPath,
+                'is_model' => $isModel,
+                'size_human' => $this->humanSize($size),
+                'size' => $size,
+                'modified' => file_exists($full) ? date('Y-m-d H:i', filemtime($full)) : '',
+            ];
+        }
+
+        usort($this->localModels, fn ($a, $b) => $b['size'] <=> $a['size']);
+
+        if (empty($this->localModels)) {
+            $this->modelsScanMsg = 'No folders found here.';
+        }
+    }
+
+    /**
+     * Reveal the models directory in the OS file manager (native runtime only).
+     */
+    public function openModelsFolder(): void
+    {
+        try {
+            $base = $this->expandHome($this->modelsRoot);
+            $target = $this->modelsBrowsePath !== '' ? rtrim($base, '/') . '/' . $this->modelsBrowsePath : $base;
+            \Native\Desktop\Facades\Shell::showInFolder($target);
+        } catch (\Throwable $e) {
+            // Not running inside the NativePHP/Electron shell — nothing to open.
+        }
     }
 
     /**
@@ -81,6 +251,20 @@ class Settings extends Component
      */
     public function save(): void
     {
+        // Push provider routing to kernel-evolving via /provider/set
+        $providerPayload = [
+            'task_inference' => $this->providerTaskInference,
+            'synthesis'      => $this->providerSynthesis,
+            'critic'         => $this->providerCritic,
+            'persist'        => true,
+        ];
+        try {
+            \Illuminate\Support\Facades\Http::timeout(5)
+                ->post('http://127.0.0.1:8779/provider/set', $providerPayload);
+        } catch (\Exception $e) {
+            Log::warning('Settings: /provider/set failed: ' . $e->getMessage());
+        }
+
         // XP3: push non-empty API keys to kernel-evolving and persist locally
         $keys = array_filter([
             'OPENAI_API_KEY'    => $this->openaiKey,

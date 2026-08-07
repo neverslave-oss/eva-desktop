@@ -15,8 +15,9 @@
     </div>
     <!-- Context menu -->
     <div id="mem-ctx-menu" style="display:none;position:fixed;background:#161b22;border:1px solid #30363d;border-radius:6px;z-index:1000;padding:4px 0;min-width:130px;box-shadow:0 4px 12px rgba(0,0,0,.5);">
-        <div style="padding:6px 12px;cursor:pointer;font-size:0.78em;font-family:monospace;color:#c9d1d9;" onclick="openMemoryFile()">📂 Open</div>
-        <div style="padding:6px 12px;cursor:pointer;font-size:0.78em;font-family:monospace;color:#f85149;" onclick="deleteCurrentMemoryFile()">🗑 Delete</div>
+        <div style="padding:6px 12px;cursor:pointer;font-size:0.78em;font-family:monospace;color:#c9d1d9;" onclick="_memCtxOpen()">📂 Open</div>
+        <div style="padding:6px 12px;cursor:pointer;font-size:0.78em;font-family:monospace;color:#8b949e;" onclick="_memCtxRename()">✏️ Rename</div>
+        <div style="padding:6px 12px;cursor:pointer;font-size:0.78em;font-family:monospace;color:#f85149;" onclick="_memCtxDelete()">🗑 Delete</div>
     </div>
     <div id="mem-layout">
         <!-- Left: file tree -->

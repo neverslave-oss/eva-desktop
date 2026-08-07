@@ -271,7 +271,7 @@ class KernelEvolvingService
     {
         try {
             $response = \Illuminate\Support\Facades\Http::timeout(10)
-                ->post(self::BASE_URL . '/config/env', ['keys' => $keys]);
+                ->post('http://127.0.0.1:' . self::PORT . '/config/env', ['keys' => $keys]);
             if ($response->successful()) {
                 return ['success' => true, 'message' => 'Provider keys updated'];
             }
