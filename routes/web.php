@@ -47,7 +47,7 @@ Route::post('/settings/agent/start', function () {
     $svc = app(\App\Services\KernelEvolvingService::class);
     $installDir = \App\Models\AppSetting::get('install_dir', $svc::DEFAULT_INSTALL_DIR);
     $mode = \App\Models\AppSetting::get('install_mode', 'baremetal');
-    $result = $mode === 'docker' ? $svc->startDocker() : $svc->startBareMetal($installDir);
+    $result = $mode === 'docker' ? $svc->startDocker($installDir) : $svc->startBareMetal($installDir);
     return response()->json($result);
 })->name('settings.agent-start');
 
@@ -64,7 +64,7 @@ Route::post('/settings/agent/restart', function () {
     $mode = \App\Models\AppSetting::get('install_mode', 'baremetal');
     $mode === 'docker' ? $svc->stopDocker() : $svc->stopBareMetal();
     sleep(1);
-    $result = $mode === 'docker' ? $svc->startDocker() : $svc->startBareMetal($installDir);
+    $result = $mode === 'docker' ? $svc->startDocker($installDir) : $svc->startBareMetal($installDir);
     return response()->json($result);
 })->name('settings.agent-restart');
 

@@ -296,6 +296,13 @@
                                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
                                 <p class="text-xs text-gray-600 mt-1">Mounted as the HuggingFace model cache inside the container.</p>
                             </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Workspace Path</label>
+                                <input type="text" wire:model="workspacePath" placeholder="~/.kernel-evolving/workspace"
+                                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                                <p class="text-xs text-gray-600 mt-1">Mounted at <code class="bg-gray-800 px-1 rounded">/app/workspace</code> — chat history, evolution DB, and thought journal live here on your host, so they're visible from the desktop app's Memory tab and survive container rebuilds.</p>
+                            </div>
                             </div>
                         @endif
 

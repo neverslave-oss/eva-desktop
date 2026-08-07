@@ -44,6 +44,9 @@ class SetupWizard extends Component
     // XP2: model cache location
     public string $modelsPath = '';
 
+    // Docker workspace mount — host path for /app/workspace (chat history, evolution DB, trajectories)
+    public string $workspacePath = '';
+
     // XP6a: collective memory service
     public string $collectiveMemoryUrl = '';
     public string $collectiveMemoryTestResult = '';
@@ -92,6 +95,7 @@ class SetupWizard extends Component
     {
         $this->centralUrl = AppSetting::get('central_url', config('kernel-desktop.central.url', ''));
         $this->modelsPath = AppSetting::get('models_path', config('kernel-desktop.evolving.models_path', ''));
+        $this->workspacePath = AppSetting::get('workspace_path', '~/.kernel-evolving/workspace');
         $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
 
         $stored = AppSetting::many(['telegram_bot_token', 'telegram_chat_id', 'user_name', 'user_handle', 'openai_key', 'anthropic_key', 'github_token', 'hf_token']);
@@ -227,6 +231,7 @@ class SetupWizard extends Component
                     'hf_token'             => $this->hfToken,
                     'evolution_enabled'    => $this->evolutionEnabled,
                     'models_path'          => $this->modelsPath,
+                    'workspace_path'       => $this->workspacePath,
                     'collective_memory_url'=> $this->collectiveMemoryUrl,
                 ]);
                 $this->service->writeConfigYaml($this->installDir, [
@@ -313,6 +318,7 @@ class SetupWizard extends Component
                     'hf_token'             => $this->hfToken,
                     'evolution_enabled'    => $this->evolutionEnabled,
                     'models_path'          => $this->modelsPath,
+                    'workspace_path'       => $this->workspacePath,
                     'collective_memory_url'=> $this->collectiveMemoryUrl,
                 ]);
                 $cmd = "bash -c 'cd " . escapeshellarg($deployDir) . " && docker compose up -d --build >> " . escapeshellarg($log) . " 2>&1' &";
@@ -465,6 +471,9 @@ class SetupWizard extends Component
     {
         AppSetting::set('central_url', $this->centralUrl);
         AppSetting::set('models_path', $this->modelsPath);
+        AppSetting::set('workspace_path', $this->workspacePath);
+        AppSetting::set('install_mode', $this->installMode === 'docker' ? 'docker' : 'baremetal');
+        AppSetting::set('install_dir', $this->installMode === 'docker' ? $this->dockerRepoDir : $this->installDir);
         AppSetting::set('collective_memory_url', $this->collectiveMemoryUrl);
         AppSetting::set('telegram_bot_token', $this->telegramBotToken);
         AppSetting::set('telegram_chat_id', $this->telegramChatId);

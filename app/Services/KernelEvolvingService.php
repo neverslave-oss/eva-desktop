@@ -429,6 +429,10 @@ class KernelEvolvingService
             ($config['models_path'] ?? '') !== ''
                 ? 'MODELS_PATH=' . $config['models_path']
                 : '# MODELS_PATH=~/.cache/huggingface',
+            // docker-compose.yml volume: ${KERNEL_WORKSPACE_PATH:-~/.kernel-evolving/workspace}:/app/workspace
+            ($config['workspace_path'] ?? '') !== ''
+                ? 'KERNEL_WORKSPACE_PATH=' . $config['workspace_path']
+                : '# KERNEL_WORKSPACE_PATH=~/.kernel-evolving/workspace',
             ($config['collective_memory_url'] ?? '') !== ''
                 ? 'COLLECTIVE_MEMORY_URL=' . $config['collective_memory_url']
                 : '# COLLECTIVE_MEMORY_URL=',
