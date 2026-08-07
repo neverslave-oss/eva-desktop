@@ -1,13 +1,11 @@
 <nav class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
     <!-- Logo -->
     <div class="p-4 border-b border-gray-800">
-        <h1 class="text-lg font-bold text-emerald-400 flex items-center gap-2">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-            </svg>
-            Kernel Desktop
-        </h1>
+        {{-- Logo and App Name --}}
+        <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
+            <img src="{{ asset('icon.png') }}" alt="EvAgent Logo" class="w-8 h-8">
+            <span class="text-lg font-semibold text-gray-100">{{ config('app.name', 'EvAgent Desktop') }}</span>
+        </a>
     </div>
 
     <!-- Navigation -->

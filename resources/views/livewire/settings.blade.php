@@ -214,6 +214,41 @@
         </div>
     </div>
 
+    <!-- Updates -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Updates</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Update Channel</label>
+                <select wire:model="updateChannel"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                    <option value="latest">Stable (latest)</option>
+                    <option value="beta">Beta</option>
+                    <option value="alpha">Alpha</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Check Frequency</label>
+                <select wire:model="updateFrequency"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                    <option value="startup">On startup</option>
+                    <option value="daily">Daily</option>
+                    <option value="manual">Manual only</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-3">
+                <button wire:click="checkForUpdates" wire:loading.attr="disabled"
+                        class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors disabled:opacity-50">
+                    <span wire:loading wire:target="checkForUpdates">Checking…</span>
+                    <span wire:loading.remove wire:target="checkForUpdates">Check Now</span>
+                </button>
+                @if ($updateStatus)
+                    <span class="text-sm text-gray-400">{{ $updateStatus }}</span>
+                @endif
+            </div>
+        </div>
+    </div>
+
     <!-- Save Button -->
     <div class="flex justify-end">
         <button wire:click="save"

@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ config('app.name', 'Kernel Desktop') }}</title>
+    <title>{{ config('app.name', 'Eva Agent Desktop') }}</title>
+    <link rel="icon" href="{{ asset('icon.png') }}">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">

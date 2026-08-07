@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Native\Desktop\Facades\Window;
 use Native\Desktop\Facades\MenuBar;
+use Native\Desktop\Facades\Updater;
 use Native\Desktop\Events\Windows\WindowClosed;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,11 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         ->tooltip('Self Evolving Agent Desktop')
         ->withContextMenu()
         ->openOnClick();
+
+        // Check for updates on boot — notifies user, does not auto-install
+        if (config('nativephp.updater.enabled', true)) {
+            Updater::checkForUpdates();
+        }
     }
 
 

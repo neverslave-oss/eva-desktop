@@ -26,6 +26,12 @@ class Settings extends Component
     public string $collectiveMemoryUrl = '';
     public string $collectiveMemoryTestResult = '';
 
+    // Auto-updater
+    public string $updateChannel = 'latest';
+    public string $updateFrequency = 'startup';
+    public bool $checkingForUpdates = false;
+    public string $updateStatus = '';
+
     // Pairing state
     public bool $paired = false;
     public ?int $deviceId = null;
@@ -97,7 +103,25 @@ class Settings extends Component
             $this->evolvingService->setCollectiveMemoryUrl($this->collectiveMemoryUrl);
         }
 
+        // Persist update preferences
+        AppSetting::set('update_channel', $this->updateChannel);
+        AppSetting::set('update_frequency', $this->updateFrequency);
+
         session()->flash('saved', true);
+    }
+
+    public function checkForUpdates(): void
+    {
+        $this->checkingForUpdates = true;
+        $this->updateStatus = '';
+        try {
+            \Native\Desktop\Facades\Updater::checkForUpdates();
+            $this->updateStatus = 'Checking… you will be notified if an update is available.';
+        } catch (\Exception $e) {
+            $this->updateStatus = 'Update check failed: ' . $e->getMessage();
+        } finally {
+            $this->checkingForUpdates = false;
+        }
     }
 
     // XP6a: test collective memory service reachability
