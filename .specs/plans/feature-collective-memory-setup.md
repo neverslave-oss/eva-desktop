@@ -3,7 +3,7 @@ date: 2026-08-06
 agent: copilot
 topic: Feature — Collective memory URL in SetupWizard + Settings
 tags: [livewire, setup-wizard, collective-memory, xp6a]
-status: open
+status: resolved
 ---
 
 # Feature: Collective memory URL in SetupWizard + Settings (XP6a)

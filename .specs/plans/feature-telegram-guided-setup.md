@@ -3,7 +3,7 @@ date: 2026-08-06
 agent: copilot
 topic: Feature — Guided Telegram bot setup in SetupWizard
 tags: [livewire, setup-wizard, telegram, xp4]
-status: open
+status: resolved
 ---
 
 # Feature: Guided Telegram bot setup in SetupWizard (XP4)
