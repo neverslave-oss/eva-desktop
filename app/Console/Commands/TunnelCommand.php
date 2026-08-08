@@ -75,6 +75,8 @@ class TunnelCommand extends Command
 
         // Connection loop with auto-reconnect
         $maxListen = (int) $this->option('max-listen');
+        $heartbeatInterval = max(5, (int) config('kernel-desktop.device.health_interval_seconds', 30));
+        $deviceId = (int) config('kernel-desktop.device.id', 0);
 
         while (true) {
             $connected = $tunnel->connect();
@@ -90,24 +92,55 @@ class TunnelCommand extends Command
                 continue;
             }
 
-            // Listen for messages (blocking)
             $this->line('✅ Tunnel connected. Listening for relayed messages...');
-            $tunnel->listen($maxListen);
 
-            // Connection lost — check if we should reconnect
-            if ($tunnel->getState() === TunnelService::STATE_DISCONNECTED) {
-                $delay = $this->getReconnectDelay();
-                $this->warn("🔌 Connection lost. Reconnecting in {$delay}s...");
+            $startedAt = time();
+            $lastHeartbeatAt = 0;
 
-                if (! $this->sleep($delay)) {
-                    return self::FAILURE;
+            while (true) {
+                $now = time();
+
+                if ($deviceId > 0 && ($now - $lastHeartbeatAt) >= $heartbeatInterval) {
+                    $ok = $central->heartbeat($deviceId);
+                    $lastHeartbeatAt = $now;
+
+                    if (! $ok) {
+                        $this->warn('⚠️ Heartbeat failed (will retry).');
+                    }
                 }
 
-                continue;
-            }
+                if ($maxListen > 0) {
+                    $elapsed = $now - $startedAt;
+                    $remaining = $maxListen - $elapsed;
 
-            // Unrecoverable error or explicit stop
-            break;
+                    if ($remaining <= 0) {
+                        return self::SUCCESS;
+                    }
+
+                    $window = max(1, min($heartbeatInterval, $remaining));
+                } else {
+                    $window = $heartbeatInterval;
+                }
+
+                $tunnel->listen($window);
+
+                // Connection lost — reconnect
+                if ($tunnel->getState() === TunnelService::STATE_DISCONNECTED) {
+                    $delay = $this->getReconnectDelay();
+                    $this->warn("🔌 Connection lost. Reconnecting in {$delay}s...");
+
+                    if (! $this->sleep($delay)) {
+                        return self::FAILURE;
+                    }
+
+                    continue 2;
+                }
+
+                // Unrecoverable state
+                if ($tunnel->getState() === TunnelService::STATE_ERROR) {
+                    break 2;
+                }
+            }
         }
 
         return self::SUCCESS;

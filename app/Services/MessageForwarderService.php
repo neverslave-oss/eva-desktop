@@ -29,10 +29,13 @@ class MessageForwarderService
      */
     protected int $timeout;
 
-    public function __construct()
+    protected KernelCentralService $centralService;
+
+    public function __construct(?KernelCentralService $centralService = null)
     {
         $this->evolvingUrl = rtrim(config('kernel-desktop.evolving.url', 'http://localhost:8779'), '/');
         $this->timeout = (int) config('kernel-desktop.evolving.timeout', 30);
+        $this->centralService = $centralService ?? app(KernelCentralService::class);
     }
 
     /**
@@ -80,8 +83,8 @@ class MessageForwarderService
             // Forward to kernel-evolving
             $response = $this->forwardToKernelEvolving($message, $chatId);
 
-            // Send response back through tunnel
-            $this->sendResponse($tunnel, $relayId, $response);
+            // Send response back to kernel-central (HTTP relay completion endpoint)
+            $this->sendResponse($relayId, $response);
 
             Log::info('Forwarder: relay completed', ['relay_id' => $relayId]);
 
@@ -91,7 +94,7 @@ class MessageForwarderService
                 'error' => $e->getMessage(),
             ]);
 
-            $this->sendResponse($tunnel, $relayId, [
+            $this->sendResponse($relayId, [
                 'error' => 'Forwarding failed: ' . $e->getMessage(),
                 'success' => false,
             ]);
@@ -150,27 +153,46 @@ class MessageForwarderService
     }
 
     /**
-     * Send the forwarder response back through the tunnel.
-     *
-     * The response is sent as a Pusher event message that kernel-central
-     * Reverb will route back to the MessageRelayController.
+     * Complete relay by posting response to kernel-central.
      */
-    protected function sendResponse(TunnelService $tunnel, string $relayId, array $response): void
+    protected function sendResponse(string $relayId, array $response): void
     {
-        $eventData = [
-            'event' => 'MessageRelayResponse',
-            'data' => [
-                'relay_id' => $relayId,
-                'response' => $response,
-                'forwarded_at' => now()->toIso8601String(),
-            ],
-        ];
+        $token = $this->centralService->getStoredToken();
 
-        $sent = $tunnel->send($eventData);
-
-        if (! $sent) {
-            Log::error('Forwarder: failed to send response through tunnel', [
+        if (! $token) {
+            Log::error('Forwarder: cannot post relay response, missing device token', [
                 'relay_id' => $relayId,
+            ]);
+
+            return;
+        }
+
+        $responseText = $response['success'] ?? false
+            ? (string) ($response['response'] ?? '')
+            : (string) ($response['error'] ?? 'Forwarding failed');
+
+        $endpoint = rtrim(config('kernel-desktop.central.url', 'https://kernel-central.neverslave.com'), '/')
+            . '/api/messages/relay/response';
+
+        try {
+            $httpResponse = Http::timeout(10)
+                ->withToken($token)
+                ->post($endpoint, [
+                    'relay_id' => $relayId,
+                    'response' => $responseText,
+                ]);
+
+            if (! $httpResponse->successful()) {
+                Log::error('Forwarder: kernel-central relay completion failed', [
+                    'relay_id' => $relayId,
+                    'status' => $httpResponse->status(),
+                    'body' => $httpResponse->body(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Forwarder: relay completion exception', [
+                'relay_id' => $relayId,
+                'error' => $e->getMessage(),
             ]);
         }
     }
