@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Process;
 
 class TunnelManagerService
 {
@@ -27,19 +26,41 @@ class TunnelManagerService
         $log = $this->logFile;
         $pid = $this->pidFile;
 
-        $result = Process::run([
-            'bash',
-            '-c',
-            "nohup {$php} {$artisan} tunnel:start --daemon > {$log} 2>&1 & echo \$! > {$pid}",
-        ]);
+        try {
+            if (PHP_OS_FAMILY === 'Windows') {
+                // proc_open with DETACH on Windows — no nohup/bash needed
+                $cmd = "\"{$php}\" \"{$artisan}\" tunnel:start";
+                $desc = [
+                    0 => ['pipe', 'r'],
+                    1 => ['file', $log, 'a'],
+                    2 => ['file', $log, 'a'],
+                ];
+                $proc = proc_open($cmd, $desc, $pipes, base_path(), null, ['create_new_process_group' => true]);
 
-        if ($result->failed()) {
-            Log::error('Tunnel start failed', ['output' => $result->output()]);
-            return ['success' => false, 'message' => 'Failed to start tunnel process.'];
+                if (! is_resource($proc)) {
+                    throw new \RuntimeException('proc_open failed on Windows');
+                }
+
+                $status = proc_get_status($proc);
+                $childPid = $status['pid'];
+                proc_close($proc);
+
+                file_put_contents($pid, (string) $childPid);
+            } else {
+                $out = [];
+                exec("nohup \"{$php}\" \"{$artisan}\" tunnel:start > \"{$log}\" 2>&1 & echo \$!", $out);
+                $childPid = (int) trim($out[0] ?? '0');
+
+                if ($childPid <= 0) {
+                    throw new \RuntimeException('Could not obtain PID from nohup');
+                }
+
+                file_put_contents($pid, (string) $childPid);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Tunnel start failed', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => 'Failed to start tunnel: ' . $e->getMessage()];
         }
-
-        // Brief wait for it to initialise
-        sleep(2);
 
         return ['success' => true, 'message' => 'Tunnel started.'];
     }
@@ -52,7 +73,11 @@ class TunnelManagerService
             return ['success' => true, 'message' => 'Tunnel was not running.'];
         }
 
-        Process::run(['kill', (string) $pid]);
+        if (PHP_OS_FAMILY === 'Windows') {
+            exec("taskkill /F /PID {$pid}");
+        } else {
+            exec("kill {$pid}");
+        }
 
         if (file_exists($this->pidFile)) {
             @unlink($this->pidFile);
@@ -63,8 +88,7 @@ class TunnelManagerService
 
     public function isRunning(): bool
     {
-        $pid = $this->getRunningPid();
-        return $pid !== null;
+        return $this->getRunningPid() !== null;
     }
 
     public function getLogs(int $lines = 100): string
@@ -73,8 +97,9 @@ class TunnelManagerService
             return '(no tunnel log yet)';
         }
 
-        $result = Process::run(['tail', '-n', (string) $lines, $this->logFile]);
-        return $result->output() ?: '(empty log)';
+        $content = file_get_contents($this->logFile);
+        $all = explode("\n", $content);
+        return implode("\n", array_slice($all, -$lines));
     }
 
     protected function getRunningPid(): ?int
@@ -88,9 +113,16 @@ class TunnelManagerService
             return null;
         }
 
-        // Check if the process is actually alive
-        $check = Process::run(['kill', '-0', (string) $pid]);
-        if ($check->failed()) {
+        // Check if the process is alive
+        if (PHP_OS_FAMILY === 'Windows') {
+            exec("tasklist /FI \"PID eq {$pid}\" /NH", $out);
+            $alive = collect($out)->contains(fn($line) => str_contains($line, (string) $pid));
+        } else {
+            exec("kill -0 {$pid} 2>/dev/null", $out, $code);
+            $alive = $code === 0;
+        }
+
+        if (! $alive) {
             @unlink($this->pidFile);
             return null;
         }

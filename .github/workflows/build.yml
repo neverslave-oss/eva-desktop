@@ -104,6 +104,11 @@ jobs:
           echo "NATIVEPHP_APP_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')" >> .env
           echo "NATIVEPHP_UPDATER_PROVIDER=github" >> .env
           echo "NATIVEPHP_UPDATER_ENABLED=true" >> .env
+          echo "KERNEL_CENTRAL_URL=${{ secrets.KERNEL_CENTRAL_URL }}" >> .env
+          echo "REVERB_APP_KEY=${{ secrets.REVERB_APP_KEY }}" >> .env
+          echo "REVERB_HOST=${{ secrets.REVERB_HOST }}" >> .env
+          echo "REVERB_PORT=443" >> .env
+          echo "REVERB_SCHEME=wss" >> .env
 
       - name: Install NativePHP
         run: php artisan native:install --no-interaction
@@ -152,6 +157,11 @@ jobs:
           echo "NATIVEPHP_APP_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')" >> .env
           echo "NATIVEPHP_UPDATER_PROVIDER=github" >> .env
           echo "NATIVEPHP_UPDATER_ENABLED=true" >> .env
+          echo "KERNEL_CENTRAL_URL=${{ secrets.KERNEL_CENTRAL_URL }}" >> .env
+          echo "REVERB_APP_KEY=${{ secrets.REVERB_APP_KEY }}" >> .env
+          echo "REVERB_HOST=${{ secrets.REVERB_HOST }}" >> .env
+          echo "REVERB_PORT=443" >> .env
+          echo "REVERB_SCHEME=wss" >> .env
 
       - name: Install NativePHP
         run: php artisan native:install --no-interaction
@@ -202,6 +212,11 @@ jobs:
           echo NATIVEPHP_APP_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//') >> .env
           echo NATIVEPHP_UPDATER_PROVIDER=github >> .env
           echo NATIVEPHP_UPDATER_ENABLED=true >> .env
+          echo KERNEL_CENTRAL_URL=${{ secrets.KERNEL_CENTRAL_URL }} >> .env
+          echo REVERB_APP_KEY=${{ secrets.REVERB_APP_KEY }} >> .env
+          echo REVERB_HOST=${{ secrets.REVERB_HOST }} >> .env
+          echo REVERB_PORT=443 >> .env
+          echo REVERB_SCHEME=wss >> .env
 
       - name: Install NativePHP
         run: php artisan native:install --no-interaction

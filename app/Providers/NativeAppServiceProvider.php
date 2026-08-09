@@ -5,7 +5,6 @@ namespace App\Providers;
 use Native\Desktop\Facades\Window;
 use Native\Desktop\Facades\MenuBar;
 use Native\Desktop\Facades\Menu;
-use Native\Desktop\Facades\Updater;
 use Native\Desktop\Events\Windows\WindowClosed;
 use Native\Desktop\Events\Menu\MenuItemClicked;
 use Native\Desktop\Events\Notifications\NotificationActionClicked;
@@ -30,12 +29,12 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         $this->ensureDatabaseReady();
 
         Window::open(self::MAIN_WINDOW_ID)
-        ->title('EvAgent Desktop')
-        ->route('dashboard')
-        ->width(1280)
-        ->height(800)
-        ->position(80, 80)
-        ->resizable(true);
+            ->title('EvAgent Desktop')
+            ->route('dashboard')
+            ->width(1280)
+            ->height(800)
+            ->position(80, 80)
+            ->resizable(true);
 
         // Hide to system tray on close instead of quitting
         Event::listen(WindowClosed::class, function () {
@@ -43,19 +42,19 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         });
 
         MenuBar::create()
-        ->icon(public_path('icon.png'))
-        ->label('EvAgent Desktop')
-        ->tooltip('Self Evolving Agent Desktop')
-        ->withContextMenu(Menu::make(
-            Menu::label('Show App')->event('tray-app-show'),
-            Menu::link(route('dashboard'), 'Open Dashboard'),
-            Menu::link(route('settings'), 'Settings'),
-            Menu::separator(),
-            Menu::label('Start Agent')->event('tray-agent-start'),
-            Menu::label('Stop Agent')->event('tray-agent-stop'),
-            Menu::separator(),
-            Menu::quit('Quit'),
-        ));
+            ->icon(public_path('icon.png'))
+            ->label('EvAgent Desktop')
+            ->tooltip('Self Evolving Agent Desktop')
+            ->withContextMenu(Menu::make(
+                Menu::label('Show App')->event('tray-app-show'),
+                Menu::link(route('dashboard'), 'Open Dashboard'),
+                Menu::link(route('settings'), 'Settings'),
+                Menu::separator(),
+                Menu::label('Start Agent')->event('tray-agent-start'),
+                Menu::label('Stop Agent')->event('tray-agent-stop'),
+                Menu::separator(),
+                Menu::quit('Quit'),
+            ));
 
         // Tray context menu actions (Start/Stop Agent)
         Event::listen(MenuItemClicked::class, function (MenuItemClicked $event) {
@@ -77,8 +76,8 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         });
 
         // Check for updates on boot — notifies user, does not auto-install
-        if (config('nativephp.updater.enabled', true)) {
-            Updater::checkForUpdates();
+        if (config('nativephp.updater.enabled', true) && class_exists(\Native\Desktop\Facades\Updater::class)) {
+            \Native\Desktop\Facades\Updater::checkForUpdates();
         }
     }
 
@@ -107,7 +106,7 @@ class NativeAppServiceProvider implements ProvidesPhpIni
     }
 
 
-       /**
+    /**
      * Create the SQLite database file and run migrations if needed.
      * Seeding is NOT done here — the user chooses that in the setup wizard.
      */
@@ -142,7 +141,6 @@ class NativeAppServiceProvider implements ProvidesPhpIni
      */
     public function phpIni(): array
     {
-        return [
-        ];
+        return [];
     }
 }

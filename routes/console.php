@@ -25,17 +25,9 @@ Artisan::command('inspire', function () {
 |
 */
 
-// Register tunnel commands
-Artisan::command('tunnel:start', function () {
-    $this->call(TunnelCommand::class);
-})->purpose('Start WebSocket tunnel to kernel-central for mobile relay');
-
-Artisan::command('tunnel:status', function () {
-    $this->call(TunnelStatusCommand::class);
-})->purpose('Show WebSocket tunnel connection status');
-
 // Schedule: restart tunnel if not running (every minute)
-Schedule::command('tunnel:start --daemon')
+// TunnelCommand is auto-discovered from app/Console/Commands — no manual registration needed.
+Schedule::command('tunnel:start')
     ->everyMinute()
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/tunnel-scheduler.log'));
