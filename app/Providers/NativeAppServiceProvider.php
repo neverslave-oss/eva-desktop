@@ -19,6 +19,8 @@ use Native\Desktop\Contracts\ProvidesPhpIni;
 
 class NativeAppServiceProvider implements ProvidesPhpIni
 {
+    protected const MAIN_WINDOW_ID = 'main';
+
     /**
      * Executed once the native application has been booted.
      * Use this method to open windows, register global shortcuts, etc.
@@ -26,13 +28,14 @@ class NativeAppServiceProvider implements ProvidesPhpIni
     public function boot(): void
     {
         $this->ensureDatabaseReady();
-        
-        Window::open()
+
+        Window::open(self::MAIN_WINDOW_ID)
         ->title('EvAgent Desktop')
-        ->width(800)
-        ->height(600)
-        ->resizable(true)
-        ->rememberState();
+        ->route('dashboard')
+        ->width(1280)
+        ->height(800)
+        ->position(80, 80)
+        ->resizable(true);
 
         // Hide to system tray on close instead of quitting
         Event::listen(WindowClosed::class, function () {
@@ -44,6 +47,7 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         ->label('EvAgent Desktop')
         ->tooltip('Self Evolving Agent Desktop')
         ->withContextMenu(Menu::make(
+            Menu::label('Show App')->event('tray-app-show'),
             Menu::link(route('dashboard'), 'Open Dashboard'),
             Menu::link(route('settings'), 'Settings'),
             Menu::separator(),
@@ -55,6 +59,14 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
         // Tray context menu actions (Start/Stop Agent)
         Event::listen(MenuItemClicked::class, function (MenuItemClicked $event) {
+            if (($event->item['event'] ?? null) === 'tray-app-show') {
+                // Recover a hidden/off-screen window by forcing it back into view.
+                Window::show(self::MAIN_WINDOW_ID);
+                Window::position(80, 80, false, self::MAIN_WINDOW_ID);
+
+                return;
+            }
+
             $this->handleAgentLifecycleEvent($event->item['event'] ?? null);
         });
 

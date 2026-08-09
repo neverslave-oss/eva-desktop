@@ -48,7 +48,8 @@ class Settings extends Component
 
     // Pair form
     public string $pairCentralUrl = '';
-    public string $pairApiToken = '';
+    public string $pairToken = '';
+    public string $pairSecret = '';
     public string $pairDeviceName = 'kernel-desktop';
     public bool $pairingInProgress = false;
     public ?string $pairError = null;
@@ -225,7 +226,7 @@ class Settings extends Component
             ];
         }
 
-        usort($this->localModels, fn ($a, $b) => $b['size'] <=> $a['size']);
+        usort($this->localModels, fn($a, $b) => $b['size'] <=> $a['size']);
 
         if (empty($this->localModels)) {
             $this->modelsScanMsg = 'No folders found here.';
@@ -353,24 +354,10 @@ class Settings extends Component
                 return;
             }
 
-            // Initiate device pairing
-            $result = $this->centralService->pair(
-                $this->pairDeviceName ?: 'kernel-desktop',
-                config('kernel-desktop.device.type', 'desktop'),
-                $this->pairApiToken
-            );
-
-            if (! $result['success']) {
-                $this->pairError = $result['error'] ?? 'Pairing failed';
-                $this->pairingInProgress = false;
-
-                return;
-            }
-
-            // Confirm pairing with the returned pair_token and pair_secret
+            // Confirm pairing using pair_token + pair_secret from kernel-central → Pair a Device
             $confirmResult = $this->centralService->confirm(
-                $result['pair_token'],
-                $result['pair_secret']
+                $this->pairToken,
+                $this->pairSecret
             );
 
             if (! $confirmResult['success']) {
@@ -389,7 +376,6 @@ class Settings extends Component
             $this->paired = true;
 
             Log::info('Device paired with kernel-central', ['device_id' => $this->deviceId]);
-
         } catch (\Exception $e) {
             $this->pairError = $e->getMessage();
             Log::error('Pairing error', ['error' => $e->getMessage()]);
