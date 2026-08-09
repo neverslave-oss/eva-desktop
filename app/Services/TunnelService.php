@@ -258,8 +258,8 @@ class TunnelService
             ]);
 
             // Step 1: Wait for pusher:connection_established
-            $response = $this->client->receive();
-            $data = json_decode($response->getContent(), true);
+            $raw = $this->client->receive();
+            $data = json_decode(is_string($raw) ? $raw : $raw->getContent(), true);
 
             if (! $data || ($data['event'] ?? '') !== 'pusher:connection_established') {
                 Log::error('Tunnel: unexpected initial response', ['response' => $data]);
@@ -309,7 +309,6 @@ class TunnelService
             ]);
 
             return true;
-
         } catch (ConnectionException $e) {
             $this->reconnectAttempts++;
             Log::error('Tunnel connection failed', ['error' => $e->getMessage()]);
@@ -362,7 +361,6 @@ class TunnelService
             $this->lastAuthResponse = $authData['auth'] ?? '';
 
             return true;
-
         } catch (\Exception $e) {
             Log::error('Tunnel: broadcast auth exception', ['error' => $e->getMessage()]);
 
@@ -394,7 +392,6 @@ class TunnelService
             Log::info('Tunnel: subscribed to channel', ['channel' => $this->channelName()]);
 
             return true;
-
         } catch (\Exception $e) {
             Log::error('Tunnel: subscribe failed', ['error' => $e->getMessage()]);
 
@@ -432,8 +429,8 @@ class TunnelService
             }
 
             try {
-                $message = $this->client->receive();
-                $data = json_decode($message->getContent(), true);
+                $raw = $this->client->receive();
+                $data = json_decode(is_string($raw) ? $raw : $raw->getContent(), true);
 
                 if (! $data) {
                     continue;
@@ -461,14 +458,12 @@ class TunnelService
                         $this->handleAppEvent($event, $payload);
                         break;
                 }
-
             } catch (ConnectionException $e) {
                 Log::warning('Tunnel: connection lost during listen', [
                     'error' => $e->getMessage(),
                 ]);
                 $this->setState(self::STATE_DISCONNECTED);
                 break;
-
             } catch (\Exception $e) {
                 Log::error('Tunnel: listen error', ['error' => $e->getMessage()]);
                 $this->setState(self::STATE_ERROR);

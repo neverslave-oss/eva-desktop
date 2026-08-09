@@ -92,6 +92,17 @@ Route::post('/agent/notify-offline', function () {
     return response()->json(['ok' => true]);
 })->name('agent.notify-offline');
 
+// Proxy debug/prompt-logs to the kernel-evolving agent; returns empty gracefully when agent is offline.
+Route::get('/debug/prompt-logs', function (\Illuminate\Http\Request $request) {
+    try {
+        $qs = http_build_query($request->only(['chat_id', 'limit']));
+        $resp = \Illuminate\Support\Facades\Http::timeout(5)->get('http://127.0.0.1:8779/debug/prompt-logs?' . $qs);
+        return response()->json($resp->json() ?? ['logs' => []]);
+    } catch (\Throwable) {
+        return response()->json(['logs' => []]);
+    }
+})->name('debug.prompt-logs');
+
 // Tunnel lifecycle — spawns/kills `php artisan tunnel:start --daemon`
 Route::post('/settings/tunnel/start', function () {
     $result = app(\App\Services\TunnelManagerService::class)->start();

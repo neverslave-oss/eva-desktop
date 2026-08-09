@@ -30,7 +30,7 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
         Window::open(self::MAIN_WINDOW_ID)
             ->title('EvAgent Desktop')
-            ->route('dashboard')
+            ->route('chat')
             ->width(1280)
             ->height(800)
             ->position(80, 80)

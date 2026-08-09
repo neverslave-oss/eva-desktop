@@ -23,6 +23,12 @@ class Settings extends Component
     public string $githubToken = '';
     public string $hfToken = '';
 
+    // Channels: Telegram
+    public string $telegramBotToken = '';
+    public string $telegramChatId = '';
+    public string $telegramTestResult = '';
+    public bool $telegramTestPassed = false;
+
     // XP6a: collective memory service URL
     public string $collectiveMemoryUrl = '';
     public string $collectiveMemoryTestResult = '';
@@ -87,11 +93,13 @@ class Settings extends Component
         }
 
         // XP3: load API keys from DB
-        $stored = AppSetting::many(['openai_key', 'anthropic_key', 'github_token', 'hf_token']);
-        $this->openaiKey = $stored['openai_key'] ?? '';
-        $this->anthropicKey = $stored['anthropic_key'] ?? '';
-        $this->githubToken = $stored['github_token'] ?? '';
-        $this->hfToken = $stored['hf_token'] ?? '';
+        $stored = AppSetting::many(['openai_key', 'anthropic_key', 'github_token', 'hf_token', 'telegram_bot_token', 'telegram_chat_id']);
+        $this->openaiKey        = $stored['openai_key'] ?? '';
+        $this->anthropicKey     = $stored['anthropic_key'] ?? '';
+        $this->githubToken      = $stored['github_token'] ?? '';
+        $this->hfToken          = $stored['hf_token'] ?? '';
+        $this->telegramBotToken = $stored['telegram_bot_token'] ?? '';
+        $this->telegramChatId   = $stored['telegram_chat_id'] ?? '';
 
         $this->modelsRoot = AppSetting::get('models_root', $this->guessModelsRoot());
         $this->scanModels();
@@ -293,7 +301,36 @@ class Settings extends Component
         AppSetting::set('update_channel', $this->updateChannel);
         AppSetting::set('update_frequency', $this->updateFrequency);
 
+        // Channels: persist Telegram config
+        AppSetting::set('telegram_bot_token', $this->telegramBotToken);
+        AppSetting::set('telegram_chat_id', $this->telegramChatId);
+
         session()->flash('saved', true);
+    }
+
+    public function testTelegramConnection(): void
+    {
+        $token = trim($this->telegramBotToken);
+        if (empty($token)) {
+            $this->telegramTestResult = 'Enter a bot token first.';
+            $this->telegramTestPassed = false;
+            return;
+        }
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(8)
+                ->get("https://api.telegram.org/bot{$token}/getMe");
+            if ($response->ok() && $response->json('ok') === true) {
+                $username = $response->json('result.username', 'unknown');
+                $this->telegramTestResult = "✓ Connected as @{$username}";
+                $this->telegramTestPassed = true;
+            } else {
+                $this->telegramTestResult = 'Invalid token — Telegram rejected it.';
+                $this->telegramTestPassed = false;
+            }
+        } catch (\Exception $e) {
+            $this->telegramTestResult = 'Connection failed: ' . $e->getMessage();
+            $this->telegramTestPassed = false;
+        }
     }
 
     public function checkForUpdates(): void

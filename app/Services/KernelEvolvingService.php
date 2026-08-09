@@ -84,7 +84,7 @@ class KernelEvolvingService
         $vramMb = 0;
         if ($available) {
             $line = trim($result->output());
-            $parts = str_getcsv($line);
+            $parts = str_getcsv($line, ',', '"', '');
             $name = trim($parts[0] ?? 'Unknown');
             $vramStr = trim($parts[1] ?? '0');
             // Parse "8192 MiB" → 8192
