@@ -284,10 +284,27 @@
                 @elseif ($tunnelState === 'connecting' || $tunnelState === 'reconnecting')
                 Establishing tunnel connection. Auto-reconnect is active with exponential backoff.
                 @else
-                Tunnel is disconnected. Run <code class="bg-gray-800 px-1 py-0.5 rounded text-xs">php artisan tunnel:start</code>
-                to establish the WebSocket connection for mobile relay.
+                Tunnel is disconnected. Use the buttons below to start it.
                 @endif
             </p>
+
+            <div class="flex flex-wrap gap-2 mt-3">
+                <button onclick="tunnelControl('start')"
+                    class="px-4 py-2 bg-emerald-800/40 hover:bg-emerald-700/50 border border-emerald-700/40 rounded-lg text-xs font-medium text-emerald-400 transition-colors">
+                    ▶ Start Tunnel
+                </button>
+                <button onclick="tunnelControl('stop')"
+                    class="px-4 py-2 bg-red-900/30 hover:bg-red-900/50 border border-red-800/30 rounded-lg text-xs font-medium text-red-400 transition-colors">
+                    ■ Stop Tunnel
+                </button>
+                <button onclick="tunnelControl('logs')"
+                    class="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-medium transition-colors">
+                    📋 Logs
+                </button>
+            </div>
+            <div id="tunnel-action-msg" class="text-xs text-gray-500 mt-1 min-h-[1.2em]"></div>
+            <div id="tunnel-log-output" style="display:none;"
+                class="mt-2 p-3 bg-gray-950 border border-gray-800 rounded-lg font-mono text-xs text-gray-400 max-h-48 overflow-y-auto whitespace-pre-wrap"></div>
 
             <div class="flex gap-2 mt-4">
                 <button wire:click="refreshTunnelStatus"
@@ -568,4 +585,52 @@
     }
 
     refreshAgentStatus();
+
+    async function tunnelControl(action) {
+        const msg = document.getElementById('tunnel-action-msg');
+        const out = document.getElementById('tunnel-log-output');
+        const labels = {
+            start: '▶ Starting tunnel…',
+            stop: '■ Stopping tunnel…',
+            logs: '📋 Fetching logs…'
+        };
+        if (msg) msg.textContent = labels[action] || '…';
+
+        if (action === 'logs') {
+            if (out) {
+                out.style.display = '';
+                out.textContent = 'Loading…';
+            }
+            try {
+                const r = await fetch('/settings/tunnel/logs', {
+                    headers: {
+                        'X-CSRF-TOKEN': CSRF
+                    }
+                });
+                const d = await r.json();
+                if (out) out.textContent = d.logs || '(no logs)';
+            } catch (e) {
+                if (out) out.textContent = 'Error: ' + e.message;
+            }
+            if (msg) msg.textContent = '';
+            return;
+        }
+
+        if (out) out.style.display = 'none';
+        try {
+            const r = await fetch('/settings/tunnel/' + action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': CSRF
+                }
+            });
+            const d = await r.json();
+            if (msg) msg.textContent = d.success ? '✅ ' + (d.message || action + ' done') : '❌ ' + (d.message || 'failed');
+        } catch (e) {
+            if (msg) msg.textContent = '❌ ' + e.message;
+        }
+        setTimeout(() => {
+            if (msg) msg.textContent = '';
+        }, 6000);
+    }
 </script>

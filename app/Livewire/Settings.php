@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Services\KernelCentralService;
 use App\Services\KernelEvolvingService;
+use App\Services\TunnelManagerService;
 use App\Services\TunnelService;
 use App\Models\AppSetting;
 use Livewire\Component;
@@ -376,6 +377,9 @@ class Settings extends Component
             $this->paired = true;
 
             Log::info('Device paired with kernel-central', ['device_id' => $this->deviceId]);
+
+            // Auto-start tunnel now that pairing is complete
+            app(TunnelManagerService::class)->start();
         } catch (\Exception $e) {
             $this->pairError = $e->getMessage();
             Log::error('Pairing error', ['error' => $e->getMessage()]);

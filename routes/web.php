@@ -91,3 +91,19 @@ Route::post('/agent/notify-offline', function () {
     }
     return response()->json(['ok' => true]);
 })->name('agent.notify-offline');
+
+// Tunnel lifecycle — spawns/kills `php artisan tunnel:start --daemon`
+Route::post('/settings/tunnel/start', function () {
+    $result = app(\App\Services\TunnelManagerService::class)->start();
+    return response()->json($result);
+})->name('settings.tunnel-start');
+
+Route::post('/settings/tunnel/stop', function () {
+    $result = app(\App\Services\TunnelManagerService::class)->stop();
+    return response()->json($result);
+})->name('settings.tunnel-stop');
+
+Route::get('/settings/tunnel/logs', function () {
+    $logs = app(\App\Services\TunnelManagerService::class)->getLogs(100);
+    return response()->json(['logs' => $logs]);
+})->name('settings.tunnel-logs');
