@@ -597,12 +597,94 @@ function resetAgentUi() {
     loadAgentPromptPreview();
 }
 
+function updateAgentSessionBadge(sessionId) {
+    const sessionEl = document.getElementById('agent-session-id');
+    if (sessionEl) sessionEl.textContent = sessionId || '—';
+}
+
+function autosizeAgentInput() {
+    const input = document.getElementById('agent-input');
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+}
+
+async function postJsonWithTimeout(url, body = {}, timeoutMs = 7000) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            signal: ctrl.signal,
+            body: JSON.stringify(body || {}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+            throw new Error(data.error || `${url} ${res.status}`);
+        }
+        return data;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function callAgentChatEndpoint(path, payload) {
+    const url = kapi(path);
+    try {
+        return await postJsonWithTimeout(url, payload, 7000);
+    } catch (postError) {
+        const params = new URLSearchParams();
+        Object.entries(payload || {}).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+        });
+        const fallbackUrl = params.size ? `${url}?${params.toString()}` : url;
+        try {
+            return await fetchJsonWithTimeout(fallbackUrl, 7000);
+        } catch (_) {
+            throw postError;
+        }
+    }
+}
+
+async function agentFreshSession() {
+    if (_agentBusy) return;
+    _agentBusy = true;
+    const sessionId = agentSessionId();
+    agentSetStatus(`Cleaning session ${sessionId}…`);
+    try {
+        await callAgentChatEndpoint('/chat/fresh', { chat_id: sessionId });
+        resetAgentUi();
+        agentAppendBubble('assistant', 'Conversation cleaned. This session is now fresh.');
+        agentSetStatus(`Session ${sessionId} cleaned`);
+        await refreshAgentInspector();
+    } catch (e) {
+        agentSetStatus(`Fresh failed: ${e.message}`);
+    } finally {
+        _agentBusy = false;
+    }
+}
+
 async function agentSend(text) {
     const payload = (text || document.getElementById('agent-input')?.value || '').trim();
     if (!payload || _agentBusy) return;
+
+    if (payload.toLowerCase() === '/new') {
+        await agentNewSession();
+        return;
+    }
+    if (payload.toLowerCase() === '/fresh') {
+        await agentFreshSession();
+        return;
+    }
+
     _agentBusy = true;
     const input = document.getElementById('agent-input');
-    if (input) input.value = '';
+    if (input) {
+        input.value = '';
+        input.style.height = '44px';
+    }
     agentAppendBubble('user', payload);
     const assistantNode = agentAppendBubble('assistant', '…');
     _agentCurrentTrace = [];
@@ -680,14 +762,6 @@ async function agentSend(text) {
             }
         }
 
-        if (payload.toLowerCase().startsWith('/new')) {
-            resetAgentUi();
-            agentAppendBubble('assistant', 'Session cleared. Start a new conversation when ready.');
-            agentSetStatus('Session cleared');
-            _agentBusy = false;
-            return;
-        }
-
         _agentSessionCleared = false;
         agentSetStatus('Response received. Loading prompt snapshot…');
         await refreshAgentInspector();
@@ -704,7 +778,26 @@ async function agentSend(text) {
 }
 
 async function agentNewSession() {
-    return agentSend('/new');
+    if (_agentBusy) return;
+    _agentBusy = true;
+
+    const previousSessionId = agentSessionId();
+    agentSetStatus(`Creating new session from ${previousSessionId}…`);
+    try {
+        const data = await callAgentChatEndpoint('/chat/new', { chat_id: previousSessionId });
+        const newSessionId = String(data?.chat_id || stableSessionId('agent'));
+        setAgentSessionId(newSessionId);
+        setAgentSelectedPromptId('');
+        updateAgentSessionBadge(newSessionId);
+        resetAgentUi();
+        agentAppendBubble('assistant', `New session ready: ${newSessionId}`);
+        agentSetStatus(`Ready · session ${newSessionId}`);
+        await refreshAgentInspector();
+    } catch (e) {
+        agentSetStatus(`New session failed: ${e.message}`);
+    } finally {
+        _agentBusy = false;
+    }
 }
 
 function initAgentTab() {
@@ -713,10 +806,11 @@ function initAgentTab() {
 
     const sessionId = agentSessionId();
     const sessionEl = document.getElementById('agent-session-id');
-    if (sessionEl) sessionEl.textContent = sessionId;
+    updateAgentSessionBadge(sessionId);
 
     const input = document.getElementById('agent-input');
     const sendBtn = document.getElementById('agent-send-btn');
+    const freshBtn = document.getElementById('agent-fresh-btn');
     const resetBtn = document.getElementById('agent-reset-btn');
     const refreshBtn = document.getElementById('agent-refresh-btn');
     const providerApplyBtn = document.getElementById('agent-provider-apply');
@@ -760,6 +854,7 @@ function initAgentTab() {
     providerSheetCloseBtn?.addEventListener('click', () => setAgentProviderSheetOpen(false));
     providerSheetBackdrop?.addEventListener('click', () => setAgentProviderSheetOpen(false));
     sendBtn?.addEventListener('click', () => agentSend());
+    freshBtn?.addEventListener('click', () => agentFreshSession());
     resetBtn?.addEventListener('click', () => agentNewSession());
     refreshBtn?.addEventListener('click', () => refreshAgentInspector());
     providerApplyBtn?.addEventListener('click', () => applyAgentProviderControls());
@@ -773,11 +868,13 @@ function initAgentTab() {
     inspectorCloseBtn?.addEventListener('click', () => setAgentInspectorOpen(false));
     inspectorBackdrop?.addEventListener('click', () => setAgentInspectorOpen(false));
     input?.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
+        if (ev.key === 'Enter' && !ev.shiftKey) {
             ev.preventDefault();
             agentSend();
         }
     });
+    input?.addEventListener('input', () => autosizeAgentInput());
+    autosizeAgentInput();
     window.addEventListener('keydown', (ev) => {
         if (ev.key === 'Escape') setAgentCommandMenuOpen(false);
         if (ev.key === 'Escape') setAgentProviderSheetOpen(false);

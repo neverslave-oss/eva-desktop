@@ -38,3 +38,4 @@ storage/framework/sessions/*.gitkeep
 storage/framework/sessions/*
 nativephp/
 dist/
+packages/

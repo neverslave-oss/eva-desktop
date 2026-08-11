@@ -10,10 +10,11 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
-        "laravel/framework": "^13.8",
+        "laravel/framework": "^13.24",
         "laravel/tinker": "^3.0",
         "livewire/livewire": "^4.3",
         "nativephp/desktop": "^2.2",
+        "pacificdev/ai-providers-for-laravel": "dev-main",
         "textalk/websocket": "*"
     },
     "require-dev": {
@@ -85,6 +86,12 @@
             "dont-discover": []
         }
     },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/fabiopacificicom/ai-providers-for-laravel"
+        }
+    ],
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",

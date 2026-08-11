@@ -40,3 +40,10 @@ Blade + Livewire 4 + Tailwind CSS 4
 - Routines Tab: Routines list loaded from kernel-evolving /routines API. Also shown inline in Skills tab.
 - Chat Tab: Full Agent Chat with message bubbles, streaming replies via SSE, session management, command menu (/help, /skills, /routines, /init, /system, /models, /thoughts, /verbose, /replica, /workspaces, /new, /evolve, /version), provider/model routing sheet, inspector panel (system prompt, conversation history, tool calls, trajectories).
 - All UI matches evolution_dashboard.html exactly.
+
+## Progress update 2026-08-11
+
+- [x] Chat composer moved to sticky bottom layout with multiline textarea (`Enter` sends, `Shift+Enter` inserts newline)
+- [x] Toolbar refreshed for chat controls with grouped session/actions buttons
+- [x] Added `Fresh` action button wired to kernel-evolving `/chat/fresh`
+- [x] Updated `New` action to call kernel-evolving `/chat/new` and rotate local session id

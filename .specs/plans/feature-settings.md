@@ -49,6 +49,14 @@ Blade + Livewire 4 + Tailwind CSS 4 + Docker CLI
 ## Status
 [ ] Not started
 
+## Progress update 2026-08-10
+
+- [x] Local path integration for `pacificdev/ai-providers-for-laravel`
+- [x] Package refresh to support provider model catalog discovery
+- [x] Settings tab now exposes per-call-type model selectors (`task_inference`, `synthesis`, `critic`)
+- [x] Save payload now includes `model_override` entries
+- [x] OpenRouter key persistence and `/config/env` forwarding
+
 ---
 
 ## Addendum 2026-08-06 — XP scope items (prioritised bugs + cross-repo onboarding)

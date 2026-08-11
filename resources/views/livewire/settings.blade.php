@@ -150,13 +150,17 @@
                 <p class="text-xs text-gray-500 mb-4">Changes are sent live to kernel-evolving via <code class="bg-gray-800 px-1 py-0.5 rounded">/provider/set</code>.</p>
                 <div class="space-y-4">
                     @foreach ([
-                    ['prop' => 'providerTaskInference', 'label' => 'Task Inference Provider'],
-                    ['prop' => 'providerSynthesis', 'label' => 'Synthesis Provider'],
-                    ['prop' => 'providerCritic', 'label' => 'Critic Provider'],
+                    ['prop' => 'providerTaskInference', 'modelProp' => 'providerTaskInferenceModel', 'label' => 'Task Inference Provider'],
+                    ['prop' => 'providerSynthesis', 'modelProp' => 'providerSynthesisModel', 'label' => 'Synthesis Provider'],
+                    ['prop' => 'providerCritic', 'modelProp' => 'providerCriticModel', 'label' => 'Critic Provider'],
                     ] as $row)
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">{{ $row['label'] }}</label>
-                        <select wire:model="{{ $row['prop'] }}" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
+                        <select
+                            id="{{ $row['prop'] }}-select"
+                            wire:model.live="{{ $row['prop'] }}"
+                            data-model-select="{{ $row['modelProp'] }}-select"
+                            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm">
                             <option value="local">Local (Nemotron)</option>
                             <option value="openai">OpenAI</option>
                             <option value="anthropic">Anthropic</option>
@@ -164,13 +168,57 @@
                             <option value="copilot">GitHub Copilot</option>
                             <option value="openrouter">OpenRouter</option>
                         </select>
+
+                        @php
+                        $provider = $this->{$row['prop']};
+                        $modelChoices = $this->getModelsForProvider($provider);
+                        @endphp
+
+                        <label class="block text-xs font-medium text-gray-500 mt-2 mb-1">Model</label>
+                        @if (!empty($modelChoices))
+                        <select id="{{ $row['modelProp'] }}-select" wire:model.live="{{ $row['modelProp'] }}" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-xs font-mono">
+                            @foreach ($modelChoices as $model)
+                            <option value="{{ $model }}">{{ $model }}</option>
+                            @endforeach
+                        </select>
+                        @else
+                        <input type="text" wire:model.live="{{ $row['modelProp'] }}" placeholder="Model name (optional)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-xs font-mono">
+                        @endif
                     </div>
                     @endforeach
                     <hr class="border-gray-700">
                     <p class="text-xs text-gray-500">API keys are stored in kernel-evolving's environment, not this app's database.</p>
-                    <div><label class="block text-sm font-medium text-gray-300 mb-1">OpenAI API Key</label><input type="password" wire:model="openaiKey" placeholder="sk-..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono"></div>
-                    <div><label class="block text-sm font-medium text-gray-300 mb-1">Anthropic API Key</label><input type="password" wire:model="anthropicKey" placeholder="sk-ant-..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono"></div>
-                    <div><label class="block text-sm font-medium text-gray-300 mb-1">HuggingFace Token</label><input type="password" wire:model="hfToken" placeholder="hf_..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono"></div>
+
+                    {{-- OpenAI --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">OpenAI API Key <span class="text-xs {{ trim($openaiKey) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($openaiKey) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="openaiKey" placeholder="sk-..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+
+                    {{-- Anthropic --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Anthropic API Key <span class="text-xs {{ trim($anthropicKey) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($anthropicKey) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="anthropicKey" placeholder="sk-ant-..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+
+                    {{-- GitHub Copilot --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">GitHub Copilot Token <span class="text-xs {{ trim($githubToken) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($githubToken) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="githubToken" placeholder="ghc_..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+                    {{-- HuggingFace --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">HuggingFace Token <span class="text-xs {{ trim($hfToken) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($hfToken) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="hfToken" placeholder="hf_..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+                    {{-- OpenRouter --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">OpenRouter API Key <span class="text-xs {{ trim($openRouterKey) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($openRouterKey) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="openRouterKey" placeholder="sk-or-..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+
+
+
                     <div class="flex justify-end pt-2">
                         <button wire:click="save" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium transition-colors">Save Providers</button>
                     </div>
@@ -364,9 +412,42 @@
         </div>
     </div>
 
+    <script type="application/json" id="provider-model-catalog">@json($providerModelCatalog)</script>
     <script>
         const KERNEL_BASE = window.KERNEL_API_BASE || 'http://127.0.0.1:8779';
         const CSRF = document.querySelector('meta[name=csrf-token]')?.content || '';
+        const PROVIDER_MODEL_CATALOG = JSON.parse(document.getElementById('provider-model-catalog')?.textContent || '{}');
+
+        function syncProviderModelSelect(providerSelect) {
+            if (!providerSelect) return;
+
+            const provider = providerSelect.value;
+            const modelSelectId = providerSelect.getAttribute('data-model-select');
+            const modelSelect = modelSelectId ? document.getElementById(modelSelectId) : null;
+            if (!modelSelect) return;
+
+            const models = Array.isArray(PROVIDER_MODEL_CATALOG[provider]) ? PROVIDER_MODEL_CATALOG[provider] : [];
+            if (!models.length) return;
+
+            const previous = modelSelect.value;
+            modelSelect.innerHTML = models
+                .map(model => `<option value="${model}">${model}</option>`)
+                .join('');
+
+            modelSelect.value = models.includes(previous) ? previous : models[0];
+            modelSelect.dispatchEvent(new Event('change', {
+                bubbles: true
+            }));
+        }
+
+        function initProviderModelSync() {
+            document
+                .querySelectorAll('select[data-model-select]')
+                .forEach((providerSelect) => {
+                    syncProviderModelSelect(providerSelect);
+                    providerSelect.addEventListener('change', () => syncProviderModelSelect(providerSelect));
+                });
+        }
 
         async function refreshAgentStatus() {
             const statusEl = document.getElementById('agent-status-label');
@@ -503,6 +584,7 @@
         }
 
         refreshAgentStatus();
+        initProviderModelSync();
 
         async function tunnelControl(action) {
             const msg = document.getElementById('tunnel-action-msg');

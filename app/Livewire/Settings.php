@@ -8,13 +8,20 @@ use App\Services\TunnelManagerService;
 use App\Services\TunnelService;
 use App\Models\AppSetting;
 use Livewire\Component;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use PacificDev\AiProviders\Services\ProviderCatalogService;
 
 class Settings extends Component
 {
     public string $providerTaskInference = 'openai';
     public string $providerSynthesis = 'openai';
     public string $providerCritic = 'openai';
+    public string $providerTaskInferenceModel = '';
+    public string $providerSynthesisModel = '';
+    public string $providerCriticModel = '';
+    public array $providerModelCatalog = [];
+    public string $providerModelsStatus = '';
     public string $theme = 'dark';
 
     // XP3: API keys (pushed to kernel-evolving on save, never stored in this app)
@@ -22,6 +29,7 @@ class Settings extends Component
     public string $anthropicKey = '';
     public string $githubToken = '';
     public string $hfToken = '';
+    public string $openRouterKey = '';
 
     // Channels: Telegram
     public string $telegramBotToken = '';
@@ -83,28 +91,157 @@ class Settings extends Component
 
         // Load current provider routing from kernel-evolving
         try {
-            $routing = \Illuminate\Support\Facades\Http::timeout(3)->get('http://127.0.0.1:8779/provider')->json();
+            $routing = Http::timeout(3)->get('http://127.0.0.1:8779/provider')->json();
             $r = $routing['routing'] ?? [];
             if (!empty($r['task_inference']['provider'])) $this->providerTaskInference = $r['task_inference']['provider'];
             if (!empty($r['synthesis']['provider']))      $this->providerSynthesis = $r['synthesis']['provider'];
             if (!empty($r['critic']['provider']))         $this->providerCritic = $r['critic']['provider'];
+
+            if (!empty($r['task_inference']['model'])) $this->providerTaskInferenceModel = $r['task_inference']['model'];
+            if (!empty($r['synthesis']['model']))      $this->providerSynthesisModel = $r['synthesis']['model'];
+            if (!empty($r['critic']['model']))         $this->providerCriticModel = $r['critic']['model'];
         } catch (\Exception $e) {
             Log::debug('Settings: could not load provider routing: ' . $e->getMessage());
         }
 
         // XP3: load API keys from DB
-        $stored = AppSetting::many(['openai_key', 'anthropic_key', 'github_token', 'hf_token', 'telegram_bot_token', 'telegram_chat_id']);
+        $stored = AppSetting::many([
+            'openai_key',
+            'anthropic_key',
+            'github_token',
+            'hf_token',
+            'openrouter_key',
+            'telegram_bot_token',
+            'telegram_chat_id',
+        ]);
         $this->openaiKey        = $stored['openai_key'] ?? '';
+        if ($this->openaiKey === '') {
+            $this->openaiKey = (string) (config('ai-providers.providers.openai.api_key')
+                ?? config('ai-providers.openai.api_key')
+                ?? env('OPENAI_API_KEY', ''));
+        }
+
         $this->anthropicKey     = $stored['anthropic_key'] ?? '';
+        if ($this->anthropicKey === '') {
+            $this->anthropicKey = (string) (config('ai-providers.providers.anthropic.api_key')
+                ?? env('ANTHROPIC_API_KEY', ''));
+        }
+
         $this->githubToken      = $stored['github_token'] ?? '';
+        if ($this->githubToken === '') {
+            $this->githubToken = (string) (config('ai-providers.providers.copilot.api_key')
+                ?? env('GITHUB_TOKEN', ''));
+        }
+
         $this->hfToken          = $stored['hf_token'] ?? '';
+        if ($this->hfToken === '') {
+            $this->hfToken = (string) (config('ai-providers.providers.hf.api_key')
+                ?? env('HF_TOKEN', ''));
+        }
+
+        $this->openRouterKey    = $stored['openrouter_key'] ?? '';
+        if ($this->openRouterKey === '') {
+            $this->openRouterKey = (string) (config('ai-providers.providers.openrouter.api_key')
+                ?? env('OPENROUTER_API_KEY', ''));
+        }
         $this->telegramBotToken = $stored['telegram_bot_token'] ?? '';
         $this->telegramChatId   = $stored['telegram_chat_id'] ?? '';
 
         $this->modelsRoot = AppSetting::get('models_root', $this->guessModelsRoot());
         $this->scanModels();
+        $this->loadProviderModelCatalogs();
 
         $this->loadTunnelStatus();
+    }
+
+    public function updatedProviderTaskInference(string $provider): void
+    {
+        $this->providerTaskInferenceModel = $this->resolveModelSelection($provider, $this->providerTaskInferenceModel);
+    }
+
+    public function updatedProviderSynthesis(string $provider): void
+    {
+        $this->providerSynthesisModel = $this->resolveModelSelection($provider, $this->providerSynthesisModel);
+    }
+
+    public function updatedProviderCritic(string $provider): void
+    {
+        $this->providerCriticModel = $this->resolveModelSelection($provider, $this->providerCriticModel);
+    }
+
+    protected function resolveModelSelection(string $provider, string $current): string
+    {
+        $models = $this->getModelsForProvider($provider);
+        if (empty($models)) {
+            return $current;
+        }
+
+        return in_array($current, $models, true) ? $current : $models[0];
+    }
+
+    protected function loadProviderModelCatalogs(): void
+    {
+        $providers = $this->supportedProviders();
+
+        foreach ($providers as $provider) {
+            $this->providerModelCatalog[$provider] = $this->getModelsForProvider($provider);
+        }
+
+        $this->providerTaskInferenceModel = $this->resolveModelSelection($this->providerTaskInference, $this->providerTaskInferenceModel);
+        $this->providerSynthesisModel = $this->resolveModelSelection($this->providerSynthesis, $this->providerSynthesisModel);
+        $this->providerCriticModel = $this->resolveModelSelection($this->providerCritic, $this->providerCriticModel);
+    }
+
+    protected function supportedProviders(): array
+    {
+        return ['local', 'openai', 'anthropic', 'hf', 'copilot', 'openrouter', 'google', 'ollama'];
+    }
+
+    public function getModelsForProvider(string $provider): array
+    {
+        $provider = strtolower(trim($provider));
+
+        if (isset($this->providerModelCatalog[$provider]) && is_array($this->providerModelCatalog[$provider])) {
+            return $this->providerModelCatalog[$provider];
+        }
+
+        $models = [];
+
+        // Prefer kernel-evolving catalog when available.
+        try {
+            $resp = Http::timeout(5)->get('http://127.0.0.1:8779/provider/models');
+            if ($resp->ok()) {
+                $catalog = $resp->json('models', []);
+                $candidate = $catalog[$provider] ?? [];
+                if (is_array($candidate)) {
+                    foreach ($candidate as $model) {
+                        if (is_string($model) && trim($model) !== '') {
+                            $models[] = trim($model);
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // Fallback to local package catalog below.
+        }
+
+        if (empty($models)) {
+            try {
+                if ($provider === 'local') {
+                    config()->set('ai-providers.providers.local.models_root', $this->expandHome($this->modelsRoot));
+                }
+
+                /** @var ProviderCatalogService $catalog */
+                $catalog = app('ai-providers.catalog');
+                $models = $catalog->getProviderModels($provider);
+            } catch (\Throwable $e) {
+                Log::debug('Settings: provider catalog unavailable: ' . $e->getMessage());
+            }
+        }
+
+        $this->providerModelCatalog[$provider] = array_values(array_unique($models));
+
+        return $this->providerModelCatalog[$provider];
     }
 
     /**
@@ -162,6 +299,12 @@ class Settings extends Component
         AppSetting::set('models_root', $this->modelsRoot);
         $this->modelsBrowsePath = '';
         $this->scanModels();
+
+        unset($this->providerModelCatalog['local']);
+        $this->providerModelCatalog['local'] = $this->getModelsForProvider('local');
+        $this->providerTaskInferenceModel = $this->resolveModelSelection($this->providerTaskInference, $this->providerTaskInferenceModel);
+        $this->providerSynthesisModel = $this->resolveModelSelection($this->providerSynthesis, $this->providerSynthesisModel);
+        $this->providerCriticModel = $this->resolveModelSelection($this->providerCritic, $this->providerCriticModel);
     }
 
     /**
@@ -262,14 +405,23 @@ class Settings extends Component
     public function save(): void
     {
         // Push provider routing to kernel-evolving via /provider/set
+        $modelOverrides = array_filter([
+            'task_inference' => trim($this->providerTaskInferenceModel),
+            'synthesis' => trim($this->providerSynthesisModel),
+            'critic' => trim($this->providerCriticModel),
+        ]);
+
         $providerPayload = [
             'task_inference' => $this->providerTaskInference,
             'synthesis'      => $this->providerSynthesis,
             'critic'         => $this->providerCritic,
             'persist'        => true,
         ];
+        if (!empty($modelOverrides)) {
+            $providerPayload['model_override'] = $modelOverrides;
+        }
         try {
-            \Illuminate\Support\Facades\Http::timeout(5)
+            Http::timeout(5)
                 ->post('http://127.0.0.1:8779/provider/set', $providerPayload);
         } catch (\Exception $e) {
             Log::warning('Settings: /provider/set failed: ' . $e->getMessage());
@@ -281,15 +433,18 @@ class Settings extends Component
             'ANTHROPIC_API_KEY' => $this->anthropicKey,
             'GITHUB_TOKEN'      => $this->githubToken,
             'HF_TOKEN'          => $this->hfToken,
+            'OPENROUTER_API_KEY'=> $this->openRouterKey,
         ]);
         if (!empty($keys)) {
             $this->evolvingService->updateProviderKeys($keys);
-            // Mirror to app_settings so fields survive a page reload
-            AppSetting::set('openai_key', $this->openaiKey);
-            AppSetting::set('anthropic_key', $this->anthropicKey);
-            AppSetting::set('github_token', $this->githubToken);
-            AppSetting::set('hf_token', $this->hfToken);
         }
+
+        // Mirror to app_settings so fields survive a page reload.
+        AppSetting::set('openai_key', $this->openaiKey);
+        AppSetting::set('anthropic_key', $this->anthropicKey);
+        AppSetting::set('github_token', $this->githubToken);
+        AppSetting::set('hf_token', $this->hfToken);
+        AppSetting::set('openrouter_key', $this->openRouterKey);
 
         // XP6a: persist collective memory URL if set
         if (!empty($this->collectiveMemoryUrl)) {

@@ -99,6 +99,7 @@ class SetupWizard extends Component
         $this->collectiveMemoryUrl = AppSetting::get('collective_memory_url', config('kernel-desktop.evolving.collective_memory_url', ''));
 
         $stored = AppSetting::many(['telegram_bot_token', 'telegram_chat_id', 'user_name', 'user_handle', 'openai_key', 'anthropic_key', 'github_token', 'hf_token']);
+        
         $this->telegramBotToken = $stored['telegram_bot_token'] ?? '';
         $this->telegramChatId   = $stored['telegram_chat_id'] ?? '';
         $this->userName         = $stored['user_name'] ?? '';

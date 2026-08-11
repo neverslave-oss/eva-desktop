@@ -534,9 +534,11 @@
 .agent-chat-shell {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     min-height: 0;
+    height: 100%;
     padding: 0.35rem 0.5rem;
+    overflow: hidden;
 }
 
 .agent-head {
@@ -549,6 +551,7 @@
 .agent-head-actions {
     display: inline-flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -565,13 +568,13 @@
 .agent-session-pill strong { color: #58a6ff; }
 
 .agent-thread {
-    min-height: calc(100vh - 280px);
-    max-height: none;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     border: 0;
     border-radius: 16px;
     background: linear-gradient(180deg, rgba(14, 20, 30, 0.52), rgba(10, 15, 24, 0.82));
-    padding: 14px 14px 164px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -614,47 +617,33 @@
 }
 
 .agent-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: stretch;
-    flex-wrap: wrap;
-    border: 1px solid #2b384c;
-    background: rgba(11, 16, 22, 0.92);
-    padding: 10px;
-    border-radius: 14px;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.48);
-    backdrop-filter: blur(8px);
+    position: relative;
+    z-index: 8;
 }
 
-.agent-controls-top {
+.agent-toolbar {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.agent-toolbar-actions {
+    display: inline-flex;
+    align-items: center;
     gap: 8px;
 }
 
 .agent-controls-main {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 8px;
 }
 
-.agent-input {
-    flex: 1;
-    min-width: 220px;
-    min-height: 42px;
-    padding: 10px 12px;
-    font-size: 0.82em;
-    border-radius: 10px;
-    background: #0f1520;
-    border: 1px solid #3b4658;
-    color: #c9d1d9;
-    font-family: monospace;
-}
+/* .agent-input and #agent-send-btn are styled in chat.blade.php composer styles */
 
 #agent-send-btn {
-    min-height: 42px;
-    min-width: 96px;
     font-weight: 700;
     letter-spacing: 0.03em;
 }
@@ -665,6 +654,15 @@
     font-size: 0.7em;
     white-space: nowrap;
 }
+
+.agent-status {
+    font-size: 0.72em;
+    color: #8b949e;
+    min-height: 16px;
+    padding: 0 2px;
+}
+
+
 
 /* ── Agent inspector ── */
 .agent-inspector {
@@ -881,6 +879,72 @@
 }
 
 .agent-provider-sheet.open { transform: translateX(0); z-index: 10000; }
+
+/* ── Agent memory offcanvas ── */
+.agent-memory-offcanvas-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 13, 0.58);
+    backdrop-filter: blur(1px);
+    z-index: 61;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+}
+
+.agent-memory-offcanvas-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.agent-memory-offcanvas {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(98vw, 1180px);
+    height: 100dvh;
+    background: #0d1117;
+    border-left: 1px solid #30363d;
+    z-index: 62;
+    transform: translateX(104%);
+    transition: transform .2s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.agent-memory-offcanvas.open {
+    transform: translateX(0);
+    z-index: 10000;
+}
+
+.agent-memory-offcanvas-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid #30363d;
+    background: #11161e;
+}
+
+.agent-memory-offcanvas-body {
+    flex: 1;
+    overflow: auto;
+}
+
+.agent-memory-offcanvas-body #memory-panel {
+    height: 100%;
+    min-height: 100%;
+}
+
+.agent-memory-offcanvas-body #mem-layout {
+    height: calc(100dvh - 220px);
+}
+
+body.agent-memory-open {
+    overflow: hidden;
+}
 
 .agent-provider-row {
     display: grid;
