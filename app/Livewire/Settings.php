@@ -17,17 +17,25 @@ class Settings extends Component
     public string $providerTaskInference = 'openai';
     public string $providerSynthesis = 'openai';
     public string $providerCritic = 'openai';
+    public string $providerPlanning = 'openai';
+    public string $providerTrajectoryTeacher = 'openai';
     public string $providerTaskInferenceModel = '';
     public string $providerSynthesisModel = '';
     public string $providerCriticModel = '';
+    public string $providerPlanningModel = '';
+    public string $providerTrajectoryTeacherModel = '';
+    // HF Router inference provider (maps to kernel-evolving providers.hf_provider / HF_ROUTER_PROVIDER).
+    public string $hfProvider = 'deepinfra';
     public array $providerModelCatalog = [];
     public string $providerModelsStatus = '';
     public string $theme = 'dark';
 
     // XP3: API keys (pushed to kernel-evolving on save, never stored in this app)
     public string $openaiKey = '';
+    public string $tmpOpenAiKey = '';
     public string $anthropicKey = '';
     public string $githubToken = '';
+    public string $githubCopilotToken = '';
     public string $hfToken = '';
     public string $openRouterKey = '';
 
@@ -96,19 +104,28 @@ class Settings extends Component
             if (!empty($r['task_inference']['provider'])) $this->providerTaskInference = $r['task_inference']['provider'];
             if (!empty($r['synthesis']['provider']))      $this->providerSynthesis = $r['synthesis']['provider'];
             if (!empty($r['critic']['provider']))         $this->providerCritic = $r['critic']['provider'];
+            if (!empty($r['planning']['provider']))       $this->providerPlanning = $r['planning']['provider'];
+            if (!empty($r['trajectory_teacher']['provider'])) $this->providerTrajectoryTeacher = $r['trajectory_teacher']['provider'];
 
             if (!empty($r['task_inference']['model'])) $this->providerTaskInferenceModel = $r['task_inference']['model'];
             if (!empty($r['synthesis']['model']))      $this->providerSynthesisModel = $r['synthesis']['model'];
             if (!empty($r['critic']['model']))         $this->providerCriticModel = $r['critic']['model'];
+            if (!empty($r['planning']['model']))       $this->providerPlanningModel = $r['planning']['model'];
+            if (!empty($r['trajectory_teacher']['model'])) $this->providerTrajectoryTeacherModel = $r['trajectory_teacher']['model'];
         } catch (\Exception $e) {
             Log::debug('Settings: could not load provider routing: ' . $e->getMessage());
         }
 
+        // Load HF Router provider from kernel-evolving config (providers.hf_provider)
+        $this->hfProvider = AppSetting::get('hf_provider', 'deepinfra');
+
         // XP3: load API keys from DB
         $stored = AppSetting::many([
             'openai_key',
+            'tmp_openai_key',
             'anthropic_key',
             'github_token',
+            'github_copilot_token',
             'hf_token',
             'openrouter_key',
             'telegram_bot_token',
@@ -121,6 +138,11 @@ class Settings extends Component
                 ?? env('OPENAI_API_KEY', ''));
         }
 
+        $this->tmpOpenAiKey     = $stored['tmp_openai_key'] ?? '';
+        if ($this->tmpOpenAiKey === '') {
+            $this->tmpOpenAiKey = (string) env('TMP_OPEN_AI_API_KEY', '');
+        }
+
         $this->anthropicKey     = $stored['anthropic_key'] ?? '';
         if ($this->anthropicKey === '') {
             $this->anthropicKey = (string) (config('ai-providers.providers.anthropic.api_key')
@@ -131,6 +153,11 @@ class Settings extends Component
         if ($this->githubToken === '') {
             $this->githubToken = (string) (config('ai-providers.providers.copilot.api_key')
                 ?? env('GITHUB_TOKEN', ''));
+        }
+
+        $this->githubCopilotToken = $stored['github_copilot_token'] ?? '';
+        if ($this->githubCopilotToken === '') {
+            $this->githubCopilotToken = (string) env('GITHUB_COPILOT_TOKEN', '');
         }
 
         $this->hfToken          = $stored['hf_token'] ?? '';
@@ -169,6 +196,16 @@ class Settings extends Component
         $this->providerCriticModel = $this->resolveModelSelection($provider, $this->providerCriticModel);
     }
 
+    public function updatedProviderPlanning(string $provider): void
+    {
+        $this->providerPlanningModel = $this->resolveModelSelection($provider, $this->providerPlanningModel);
+    }
+
+    public function updatedProviderTrajectoryTeacher(string $provider): void
+    {
+        $this->providerTrajectoryTeacherModel = $this->resolveModelSelection($provider, $this->providerTrajectoryTeacherModel);
+    }
+
     protected function resolveModelSelection(string $provider, string $current): string
     {
         $models = $this->getModelsForProvider($provider);
@@ -190,6 +227,8 @@ class Settings extends Component
         $this->providerTaskInferenceModel = $this->resolveModelSelection($this->providerTaskInference, $this->providerTaskInferenceModel);
         $this->providerSynthesisModel = $this->resolveModelSelection($this->providerSynthesis, $this->providerSynthesisModel);
         $this->providerCriticModel = $this->resolveModelSelection($this->providerCritic, $this->providerCriticModel);
+        $this->providerPlanningModel = $this->resolveModelSelection($this->providerPlanning, $this->providerPlanningModel);
+        $this->providerTrajectoryTeacherModel = $this->resolveModelSelection($this->providerTrajectoryTeacher, $this->providerTrajectoryTeacherModel);
     }
 
     protected function supportedProviders(): array
@@ -305,6 +344,8 @@ class Settings extends Component
         $this->providerTaskInferenceModel = $this->resolveModelSelection($this->providerTaskInference, $this->providerTaskInferenceModel);
         $this->providerSynthesisModel = $this->resolveModelSelection($this->providerSynthesis, $this->providerSynthesisModel);
         $this->providerCriticModel = $this->resolveModelSelection($this->providerCritic, $this->providerCriticModel);
+        $this->providerPlanningModel = $this->resolveModelSelection($this->providerPlanning, $this->providerPlanningModel);
+        $this->providerTrajectoryTeacherModel = $this->resolveModelSelection($this->providerTrajectoryTeacher, $this->providerTrajectoryTeacherModel);
     }
 
     /**
@@ -409,14 +450,23 @@ class Settings extends Component
             'task_inference' => trim($this->providerTaskInferenceModel),
             'synthesis' => trim($this->providerSynthesisModel),
             'critic' => trim($this->providerCriticModel),
+            'planning' => trim($this->providerPlanningModel),
+            'trajectory_teacher' => trim($this->providerTrajectoryTeacherModel),
         ]);
 
         $providerPayload = [
             'task_inference' => $this->providerTaskInference,
             'synthesis'      => $this->providerSynthesis,
             'critic'         => $this->providerCritic,
+            'planning'       => $this->providerPlanning,
+            'trajectory_teacher' => $this->providerTrajectoryTeacher,
             'persist'        => true,
         ];
+        // HF Router provider (providers.hf_provider) — only meaningful when hf is in use.
+        $hfProvider = trim($this->hfProvider);
+        if ($hfProvider !== '') {
+            $providerPayload['hf_provider'] = $hfProvider;
+        }
         if (!empty($modelOverrides)) {
             $providerPayload['model_override'] = $modelOverrides;
         }
@@ -430,8 +480,10 @@ class Settings extends Component
         // XP3: push non-empty API keys to kernel-evolving and persist locally
         $keys = array_filter([
             'OPENAI_API_KEY'    => $this->openaiKey,
+            'TMP_OPEN_AI_API_KEY' => $this->tmpOpenAiKey,
             'ANTHROPIC_API_KEY' => $this->anthropicKey,
             'GITHUB_TOKEN'      => $this->githubToken,
+            'GITHUB_COPILOT_TOKEN' => $this->githubCopilotToken,
             'HF_TOKEN'          => $this->hfToken,
             'OPENROUTER_API_KEY'=> $this->openRouterKey,
         ]);
@@ -441,10 +493,13 @@ class Settings extends Component
 
         // Mirror to app_settings so fields survive a page reload.
         AppSetting::set('openai_key', $this->openaiKey);
+        AppSetting::set('tmp_openai_key', $this->tmpOpenAiKey);
         AppSetting::set('anthropic_key', $this->anthropicKey);
         AppSetting::set('github_token', $this->githubToken);
+        AppSetting::set('github_copilot_token', $this->githubCopilotToken);
         AppSetting::set('hf_token', $this->hfToken);
         AppSetting::set('openrouter_key', $this->openRouterKey);
+        AppSetting::set('hf_provider', $hfProvider);
 
         // XP6a: persist collective memory URL if set
         if (!empty($this->collectiveMemoryUrl)) {

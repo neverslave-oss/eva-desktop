@@ -153,6 +153,8 @@
                     ['prop' => 'providerTaskInference', 'modelProp' => 'providerTaskInferenceModel', 'label' => 'Task Inference Provider'],
                     ['prop' => 'providerSynthesis', 'modelProp' => 'providerSynthesisModel', 'label' => 'Synthesis Provider'],
                     ['prop' => 'providerCritic', 'modelProp' => 'providerCriticModel', 'label' => 'Critic Provider'],
+                    ['prop' => 'providerPlanning', 'modelProp' => 'providerPlanningModel', 'label' => 'Planning Provider'],
+                    ['prop' => 'providerTrajectoryTeacher', 'modelProp' => 'providerTrajectoryTeacherModel', 'label' => 'Trajectory Teacher Provider'],
                     ] as $row)
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">{{ $row['label'] }}</label>
@@ -167,6 +169,8 @@
                             <option value="hf">HuggingFace</option>
                             <option value="copilot">GitHub Copilot</option>
                             <option value="openrouter">OpenRouter</option>
+                            <option value="google">Google</option>
+                            <option value="ollama">Ollama</option>
                         </select>
 
                         @php
@@ -187,12 +191,25 @@
                     </div>
                     @endforeach
                     <hr class="border-gray-700">
+                    {{-- HF Router provider --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">HF Router Provider <span class="text-xs text-gray-500">(providers.hf_provider)</span></label>
+                        <p class="text-xs text-gray-500 mb-2">Selects the HuggingFace inference provider used by the <code class="bg-gray-800 px-1 py-0.5 rounded">hf</code> provider (e.g. <code class="bg-gray-800 px-1 py-0.5 rounded">deepinfra</code>, <code class="bg-gray-800 px-1 py-0.5 rounded">together</code>). The router adds it as a <code class="bg-gray-800 px-1 py-0.5 rounded">:provider</code> suffix on the model id.</p>
+                        <input type="text" wire:model="hfProvider" placeholder="deepinfra" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+                    <hr class="border-gray-700">
                     <p class="text-xs text-gray-500">API keys are stored in kernel-evolving's environment, not this app's database.</p>
 
                     {{-- OpenAI --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">OpenAI API Key <span class="text-xs {{ trim($openaiKey) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($openaiKey) !== '' ? 'Set' : 'Not set' }}</span></label>
                         <input type="password" wire:model="openaiKey" placeholder="sk-..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+
+                    {{-- TMP OpenAI API Key --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">TMP OpenAI API Key <span class="text-xs {{ trim($tmpOpenAiKey) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($tmpOpenAiKey) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="tmpOpenAiKey" placeholder="Alternate OpenAI key (optional)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
                     </div>
 
                     {{-- Anthropic --}}
@@ -203,8 +220,13 @@
 
                     {{-- GitHub Copilot --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-300 mb-1">GitHub Copilot Token <span class="text-xs {{ trim($githubToken) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($githubToken) !== '' ? 'Set' : 'Not set' }}</span></label>
-                        <input type="password" wire:model="githubToken" placeholder="ghc_..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                        <label class="block text-sm font-medium text-gray-300 mb-1">GitHub Token <span class="text-xs {{ trim($githubToken) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($githubToken) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="githubToken" placeholder="github_pat_..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    </div>
+                    {{-- GitHub Copilot Token --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">GitHub Copilot Token <span class="text-xs {{ trim($githubCopilotToken) !== '' ? 'text-emerald-400' : 'text-gray-500' }}">{{ trim($githubCopilotToken) !== '' ? 'Set' : 'Not set' }}</span></label>
+                        <input type="password" wire:model="githubCopilotToken" placeholder="ghc_... (optional, falls back to GitHub Token)" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
                     </div>
                     {{-- HuggingFace --}}
                     <div>
