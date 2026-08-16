@@ -1,5 +1,7 @@
 # Kernel Desktop v1
 
+[![Hippocratic License HL3-LAW-MIL-SV](https://img.shields.io/static/v1?label=Hippocratic%20License&message=HL3-LAW-MIL-SV&labelColor=5e2751&color=bc8c3d)](https://firstdonoharm.dev/version/3/0/law-mil-sv.html)
+
 Native desktop app for installing, monitoring, and chatting with your kernel-evolving AI agent.
 
 Built with **Laravel 13 + NativePHP Desktop**.
