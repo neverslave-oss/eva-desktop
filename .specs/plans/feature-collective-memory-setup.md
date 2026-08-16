@@ -10,7 +10,7 @@ status: resolved
 
 ## Context
 
-The multi-agent collective-memory service is running at `http://192.168.1.113:8010` and is already wired into kernel-evolving (XP6b complete: `src/core/collective_memory_client.py`, `config.yaml collective_memory.url`). However the URL is currently hardcoded. The desktop wizard and settings have no way to configure it — so if the service moves or the user wants to point to a different instance, they must edit `config.yaml` manually.
+The multi-agent collective-memory service is running at `http://<collective-memory-host>:8010` and is already wired into kernel-evolving (XP6b complete: `src/core/collective_memory_client.py`, `config.yaml collective_memory.url`). However the URL is currently hardcoded. The desktop wizard and settings have no way to configure it — so if the service moves or the user wants to point to a different instance, they must edit `config.yaml` manually.
 
 ## Goal
 
@@ -76,7 +76,7 @@ On wizard finish (`finish()` method), call `$this->kernelEvolvingService->setCol
 
 ## Acceptance criteria
 
-- [ ] Wizard shows optional field for collective memory URL (pre-filled with default `http://192.168.1.113:8010`)
+- [ ] Wizard shows optional field for collective memory URL (pre-filled with default `http://<collective-memory-host>:8010`)
 - [ ] Test button shows success with model-loaded status from live service
 - [ ] URL is persisted to `config.yaml` on wizard finish
 - [ ] Settings page shows the same field with live value read from config
