@@ -281,6 +281,84 @@
                 </div>
                 @endif
             </div>
+
+            {{-- XP7: Local model management (pull + assign to slot via kernel-evolving) --}}
+            <div class="bg-gray-900 rounded-xl border border-gray-800 p-6">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-lg font-semibold text-white">Local Model Management</h3>
+                    <button wire:click="refreshKernelModels" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-medium transition-colors">Refresh</button>
+                </div>
+                <p class="text-xs text-gray-500 mb-4">Pull models from HuggingFace Hub and assign them to a named <code class="bg-gray-800 px-1 py-0.5 rounded">model_slots</code> entry. Local models run on this machine's GPU.</p>
+
+                @if ($modelsMsg)<p class="text-xs mb-3 {{ str_contains($modelsMsg, '❌') || str_contains($modelsMsg, 'error') || str_contains($modelsMsg, 'Error') ? 'text-red-400' : 'text-emerald-400' }}">{{ $modelsMsg }}</p>@endif
+                @if ($modelsPullStatus)<p class="text-xs mb-3 text-sky-400">{{ $modelsPullStatus }}</p>@endif
+
+                {{-- Downloaded local models (from kernel /models) --}}
+                @if (!empty($kernelLocalModels))
+                <h4 class="text-sm font-medium text-gray-300 mb-2">Downloaded (on this machine)</h4>
+                <div class="space-y-1.5 mb-4 max-h-56 overflow-y-auto">
+                    @foreach ($kernelLocalModels as $lm)
+                    <div class="flex items-center justify-between px-3 py-1.5 bg-gray-800/40 border border-gray-800 rounded-lg text-sm">
+                        <span class="text-gray-300 font-mono text-xs truncate" title="{{ $lm['model'] }}">{{ $lm['model'] }}</span>
+                        <span class="shrink-0 ml-3 flex items-center gap-2">
+                            @if (!empty($lm['slot']))
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-900/40 text-indigo-400">→ {{ $lm['slot'] }}</span>
+                            @else
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-400">unassigned</span>
+                            @endif
+                        </span>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+
+                {{-- Curated catalog --}}
+                <h4 class="text-sm font-medium text-gray-300 mb-2">Curated Models</h4>
+                @if (!empty($kernelCuratedModels))
+                <div class="space-y-2 mb-4">
+                    @foreach ($kernelCuratedModels as $cm)
+                    <div class="flex items-center justify-between px-3 py-2 bg-gray-800/40 border border-gray-800 rounded-lg text-sm">
+                        <div class="min-w-0">
+                            <div class="text-gray-200 font-mono text-xs truncate" title="{{ $cm['repo_id'] }}">{{ $cm['repo_id'] }}</div>
+                            <div class="text-gray-500 text-[10px]">{{ $cm['label'] ?? '' }}<span class="ml-2 {{ $cm['multimodal'] ? 'text-emerald-400' : 'text-gray-500' }}">{{ $cm['multimodal'] ? 'multimodal' : 'text' }}</span></div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0 ml-3">
+                            @if (!empty($cm['downloaded']))
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400">DOWNLOADED</span>
+                            @else
+                            <button wire:click="pullModel('{{ $cm['repo_id'] }}')" class="px-2.5 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors">Pull</button>
+                            @endif
+                            @if ($cm['slot'])
+                            <button wire:click="assignModel('{{ $cm['repo_id'] }}', '{{ $cm['slot'] }}')" class="px-2.5 py-1 bg-indigo-700 hover:bg-indigo-600 rounded text-xs font-medium transition-colors">→ {{ $cm['slot'] }}</button>
+                            @endif
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @else
+                <p class="text-xs text-gray-500 mb-4">Click <button wire:click="refreshKernelModels" class="text-indigo-400 hover:underline">Refresh</button> to load the curated catalog.</p>
+                @endif
+
+                {{-- Hub search --}}
+                <h4 class="text-sm font-medium text-gray-300 mb-2">Search HuggingFace Hub</h4>
+                <div class="flex gap-2 mb-3">
+                    <input type="text" wire:model="hubSearchQuery" placeholder="e.g. Qwen2.5-Omni" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 text-sm font-mono">
+                    <button wire:click="searchHub" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-medium transition-colors whitespace-nowrap">Search</button>
+                </div>
+                @if (!empty($hubSearchResults))
+                <div class="space-y-1.5 max-h-56 overflow-y-auto">
+                    @foreach ($hubSearchResults as $r)
+                    <div class="flex items-center justify-between px-3 py-1.5 bg-gray-800/30 border border-gray-800 rounded-lg text-sm">
+                        <div class="min-w-0">
+                            <div class="text-gray-300 font-mono text-xs truncate" title="{{ $r['id'] }}">{{ $r['id'] }}</div>
+                            <div class="text-gray-500 text-[10px]">{{ $r['pipeline_tag'] ?? 'unknown' }} · {{ $r['downloads'] ?? 0 }} downloads</div>
+                        </div>
+                        <button wire:click="pullModel('{{ $r['id'] }}')" class="px-2.5 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors shrink-0 ml-3">Pull</button>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
+            </div>
         </div>
 
         {{-- ══ GITHUB ══════════════════════════════════════════════════════ --}}
