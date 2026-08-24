@@ -56,6 +56,15 @@ class Settings extends Component
     public array $modelsBreadcrumbs = [];
     public string $modelsScanMsg = '';
 
+    // XP7: Local model management via kernel-evolving /models, /pull, /models/assign
+    public array $kernelLocalModels = [];
+    public array $kernelCuratedModels = [];
+    public string $hubSearchQuery = '';
+    public array $hubSearchResults = [];
+    public string $modelsMsg = '';
+    public string $activePullJob = '';
+    public string $modelsPullStatus = '';
+
     // Auto-updater
     public string $updateChannel = 'latest';
     public string $updateFrequency = 'startup';
@@ -437,6 +446,114 @@ class Settings extends Component
             \Native\Desktop\Facades\Shell::showInFolder($target);
         } catch (\Throwable $e) {
             // Not running inside the NativePHP/Electron shell — nothing to open.
+        }
+    }
+
+    /**
+     * XP7: Refresh locally downloaded models + curated catalog from kernel-evolving.
+     */
+    public function refreshKernelModels(): void
+    {
+        $this->modelsMsg = '';
+        try {
+            $resp = Http::timeout(5)->get('http://127.0.0.1:8779/models');
+            $data = $resp->json() ?? [];
+            $this->kernelLocalModels = $data['models'] ?? [];
+            $this->kernelCuratedModels = $data['curated'] ?? [];
+        } catch (\Exception $e) {
+            $this->modelsMsg = 'Could not reach kernel-evolving on :8779 — ' . $e->getMessage();
+        }
+    }
+
+    /**
+     * XP7: Search HuggingFace Hub for models to pull.
+     */
+    public function searchHub(): void
+    {
+        $this->modelsMsg = '';
+        $q = trim($this->hubSearchQuery);
+        try {
+            $resp = Http::timeout(10)->get('http://127.0.0.1:8779/hub/search', ['q' => $q, 'limit' => 20]);
+            $data = $resp->json() ?? [];
+            if (isset($data['error'])) {
+                $this->modelsMsg = 'Hub search error: ' . $data['error'];
+                $this->hubSearchResults = [];
+                return;
+            }
+            $this->hubSearchResults = $data['models'] ?? [];
+        } catch (\Exception $e) {
+            $this->modelsMsg = 'Hub search failed — ' . $e->getMessage();
+            $this->hubSearchResults = [];
+        }
+    }
+
+    /**
+     * XP7: Pull a model from HuggingFace Hub in the background.
+     */
+    public function pullModel(string $repoId): void
+    {
+        $this->modelsMsg = '';
+        $this->activePullJob = '';
+        $this->modelsPullStatus = "Pulling $repoId…";
+        try {
+            $resp = Http::timeout(5)->post('http://127.0.0.1:8779/pull', ['model' => $repoId]);
+            $data = $resp->json() ?? [];
+            if (isset($data['error'])) {
+                $this->modelsMsg = 'Pull error: ' . $data['error'];
+                $this->modelsPullStatus = '';
+                return;
+            }
+            $this->activePullJob = $data['job_id'] ?? '';
+            $this->pollPullJob();
+        } catch (\Exception $e) {
+            $this->modelsMsg = 'Pull request failed — ' . $e->getMessage();
+            $this->modelsPullStatus = '';
+        }
+    }
+
+    /**
+     * XP7: Poll the active pull job for progress.
+     */
+    public function pollPullJob(): void
+    {
+        if ($this->activePullJob === '') {
+            return;
+        }
+        try {
+            $resp = Http::timeout(5)->get('http://127.0.0.1:8779/jobs/' . $this->activePullJob);
+            $job = $resp->json() ?? [];
+            $status = $job['status'] ?? 'unknown';
+            $this->modelsPullStatus = "Pull " . ($job['model'] ?? '') . " → {$status}";
+            if (in_array($status, ['succeeded', 'failed'], true)) {
+                $this->modelsPullStatus .= $status === 'succeeded' ? ' ✅' : ' ❌ ' . ($job['error'] ?? '');
+                $this->activePullJob = '';
+                $this->refreshKernelModels();
+            }
+        } catch (\Exception $e) {
+            $this->modelsPullStatus = 'Job poll failed — ' . $e->getMessage();
+        }
+    }
+
+    /**
+     * XP7: Assign a pulled local model to a named model_slots entry.
+     */
+    public function assignModel(string $repoId, string $slot): void
+    {
+        $this->modelsMsg = '';
+        try {
+            $resp = Http::timeout(5)->post('http://127.0.0.1:8779/models/assign', [
+                'slot' => $slot,
+                'repo_id' => $repoId,
+            ]);
+            $data = $resp->json() ?? [];
+            if (isset($data['error'])) {
+                $this->modelsMsg = 'Assign error: ' . $data['error'];
+                return;
+            }
+            $this->modelsMsg = "Assigned $repoId → slot '$slot' ✅";
+            $this->refreshKernelModels();
+        } catch (\Exception $e) {
+            $this->modelsMsg = 'Assign request failed — ' . $e->getMessage();
         }
     }
 
