@@ -18,8 +18,11 @@ use Illuminate\Support\Facades\Process;
  */
 class KernelEvolvingService
 {
+    /**
+     * @todo: make the url configurable and point to the new repository location
+     */
     /** Default repo URL for bare-metal installs */
-    public const REPO_URL = 'https://github.com/fabiopacifici-bot/kernel-evolving.git';
+    public const REPO_URL = 'https://github.com/neverslave-oss/eva-agent.git';
 
     /** Default install directory for bare-metal installs */
     public const DEFAULT_INSTALL_DIR = '~/.kernel-evolving';
@@ -30,8 +33,10 @@ class KernelEvolvingService
     /** Health check endpoint */
     public const HEALTH_URL = 'http://localhost:8779/health';
 
+
+   
     /** Docker container name */
-    public const CONTAINER_NAME = 'kernel-evolving';
+    public const CONTAINER_NAME = 'eva-agent';
 
     /**
      * Detect whether Docker is installed and the daemon is running.
@@ -397,7 +402,7 @@ class KernelEvolvingService
 
         return [
             'success' => $healthy,
-            'message' => $healthy ? 'kernel-evolving container started on port ' . self::PORT : 'Container started but health check failed',
+            'message' => $healthy ? 'eva-agent container started on port ' . self::PORT : 'Container started but health check failed',
             'output' => $result->output(),
             'error' => $result->errorOutput(),
             'log_file' => '/tmp/kernel_evolving_docker.log',
