@@ -2807,6 +2807,11 @@ let _vPlaybackUrl = '';
 let _vAutoTtsTimer = null;
 let _vAutoTtsAttempts = 0;
 const _vAutoTtsMaxAttempts = 1;
+// ElevenLabs realtime mode state
+let _vRtMode = false;          // true when the ElevenLabs Realtime (:8768) server is selected
+let _vRtSessionId = null;      // active ElevenLabs realtime session id
+let _vRtPollTimer = null;      // interval handle for GET /rt/receive polling
+let _vRtChunkTimer = null;     // interval handle for streaming mic segments up
 
 function vSetMicEnabled(enabled) {
     const btn = document.getElementById('v-mic-btn');
@@ -2984,6 +2989,7 @@ function initVoiceTab() {
         if (_vIsRecording) vStopRecording();
     });
     document.getElementById('v-new-conv').addEventListener('click', async () => {
+        if (_vRtMode && _vRtSessionId) { try { await vRtStop(); } catch (_) { } }
         const base = vServerBase();
         try { await fetch(`${base}/voice/history/${_vSessionId}`, { method: 'DELETE' }); } catch (_) { }
         _vSessionId = 'evo-voice-' + Math.random().toString(36).slice(2, 8);
@@ -3018,10 +3024,36 @@ async function vFetchWithTimeout(url, options = {}, timeoutMs = 60000) {
 
 async function checkVoiceServer() {
     const base = vServerBase();
+    _vRtMode = base.includes('8768'); // ElevenLabs Realtime server selected
     const el = document.getElementById('v-server-status');
     try {
         const r = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
         const j = await r.json();
+        const mediaSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+
+        if (_vRtMode) {
+            // ElevenLabs realtime: health reports realtime_configured + agent_id.
+            _vVoiceReady = Boolean(j.realtime_configured && j.agent_id && mediaSupported);
+            if (!_vVoiceReady) {
+                const reason = !mediaSupported
+                    ? 'browser mic APIs unavailable'
+                    : (!j.agent_id ? 'no ElevenLabs agent_id configured' : 'realtime not configured');
+                el.textContent = `⚠ ${reason}`;
+                el.style.color = '#d29922';
+                vSetMicEnabled(false);
+                vSetRetryEnabled(false);
+                vSetWaveMode('idle', 'offline');
+                vSetStatus('Voice not ready: ' + reason);
+                return;
+            }
+            el.textContent = `✅ ElevenLabs Realtime (${j.active_sessions || 0} active)`;
+            el.style.color = '#3fb950';
+            vSetMicEnabled(true);
+            vSetWaveMode('idle', 'ready');
+            vSetStatus('Ready — click mic to start/stop, or hold SPACE');
+            return;
+        }
+
         let hasVoiceEndpoints = false;
         try {
             const openapiRes = await fetch(`${base}/openapi.json`, { signal: AbortSignal.timeout(3000) });
@@ -3031,7 +3063,6 @@ async function checkVoiceServer() {
             }
         } catch (_) { }
 
-        const mediaSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
         _vVoiceReady = Boolean((j.status === 'ok' || j.llm) && hasVoiceEndpoints && mediaSupported);
 
         if (!_vVoiceReady) {
@@ -3335,6 +3366,131 @@ async function vNormalizeBlobToWav(blob) {
     }
 }
 
+// ── ElevenLabs Realtime mode (server :8768) ──────────────────────────────
+// Encodes Float32 samples into raw 16-bit PCM mono bytes (no WAV header) at
+// the given sample rate — matches the server's SAMPLE_RATE=44100 expectation.
+function vEncodePcmFromFloat32(samples, sampleRate = 44100) {
+    const bytes = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        bytes[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return new Uint8Array(bytes.buffer);
+}
+
+// Decodes a recorded blob and resamples to the target rate, returning raw PCM.
+async function vNormalizeBlobToPcm(blob, targetRate = 44100) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    const ctx = new Ctx();
+    try {
+        const arr = await blob.arrayBuffer();
+        const decoded = await ctx.decodeAudioData(arr.slice(0));
+        const inData = decoded.getChannelData(0);
+        const inRate = decoded.sampleRate || 44100;
+        const ratio = inRate / targetRate;
+        const outLen = Math.max(1, Math.floor(inData.length / ratio));
+        const out = new Float32Array(outLen);
+        for (let i = 0; i < outLen; i++) {
+            const src = i * ratio;
+            const i0 = Math.floor(src);
+            const i1 = Math.min(i0 + 1, inData.length - 1);
+            const frac = src - i0;
+            out[i] = inData[i0] + (inData[i1] - inData[i0]) * frac;
+        }
+        return vEncodePcmFromFloat32(out, targetRate);
+    } finally {
+        try { await ctx.close(); } catch (_) { }
+    }
+}
+
+function vRtB64(pcmBytes) {
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < pcmBytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, pcmBytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+}
+
+async function vRtStart() {
+    const base = vServerBase();
+    const r = await vFetchWithTimeout(`${base}/rt/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    }, 15000);
+    if (!r.ok) throw new Error(`rt/start ${r.status}`);
+    const j = await r.json();
+    _vRtSessionId = j.session_id;
+    return _vRtSessionId;
+}
+
+async function vRtSendAudio(pcmBytes) {
+    if (!_vRtSessionId) return;
+    const base = vServerBase();
+    await vFetchWithTimeout(`${base}/rt/audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: _vRtSessionId, pcm_b64: vRtB64(pcmBytes) })
+    }, 20000);
+}
+
+async function vRtPoll() {
+    if (!_vRtSessionId) return;
+    const base = vServerBase();
+    try {
+        const r = await fetch(`${base}/rt/receive?session_id=${encodeURIComponent(_vRtSessionId)}`, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j.audio_b64) {
+            const bin = atob(j.audio_b64);
+            const pcm = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) pcm[i] = bin.charCodeAt(i);
+            // Server returns raw 16-bit signed PCM mono (little-endian).
+            const samples = new Float32Array(Math.floor(pcm.length / 2));
+            for (let i = 0, k = 0; i + 1 < pcm.length; i += 2, k++) {
+                const lo = pcm[i], hi = pcm[i + 1];
+                let s16 = (hi << 8) | lo;
+                if (s16 & 0x8000) s16 = s16 - 0x10000; // sign extend
+                samples[k] = s16 / 0x8000;
+            }
+            const wav = vEncodeWavFromFloat32(samples, 44100);
+            vSetWaveMode('speaking', 'speaking');
+            vSetStatus('Speaking…');
+            await vPlayBlob(wav);
+            vSetWaveMode('idle', 'ready');
+        }
+        if (j.transcripts && j.transcripts.length) {
+            j.transcripts.forEach(t => { if (t) vAddBubble('assistant', t, null, false); });
+        }
+        if (j.done) vRtStopPolling();
+    } catch (_) { }
+}
+
+function vRtStartPolling() {
+    if (_vRtPollTimer) return;
+    _vRtPollTimer = setInterval(() => vRtPoll(), 1200);
+}
+
+function vRtStopPolling() {
+    if (_vRtPollTimer) { clearInterval(_vRtPollTimer); _vRtPollTimer = null; }
+}
+
+async function vRtStop() {
+    vRtStopPolling();
+    if (_vRtSessionId) {
+        const base = vServerBase();
+        try { await vFetchWithTimeout(`${base}/rt/end`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: _vRtSessionId })
+        }, 10000);
+        } catch (_) { }
+    }
+    _vRtSessionId = null;
+}
+
 async function vStartRecording() {
     if (_vProcessing || _vIsRecording) return;
     vClearAutoTtsRetry();
@@ -3351,6 +3507,13 @@ async function vStartRecording() {
         }
         if (!_vMediaStream) _vMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         await vAttachWaveAnalyserFromStream(_vMediaStream);
+
+        if (_vRtMode) {
+            // ElevenLabs realtime: open a session, then stream segments up.
+            _vRtSessionId = await vRtStart();
+            vRtStartPolling();
+        }
+
         const m = MediaRecorder;
         const mime = m.isTypeSupported && m.isTypeSupported('audio/webm;codecs=opus')
             ? 'audio/webm;codecs=opus'
@@ -3362,6 +3525,20 @@ async function vStartRecording() {
         _vRecordStartedAt = Date.now();
         _vIsRecording = true;
         _vRecorder.start();
+
+        if (_vRtMode) {
+            // Stream short segments to the agent while recording.
+            _vRtChunkTimer = setInterval(async () => {
+                if (!_vIsRecording || _vChunks.length === 0) return;
+                const seg = new Blob(_vChunks, { type: _vRecordMime });
+                _vChunks = [];
+                try {
+                    const pcm = await vNormalizeBlobToPcm(seg, 44100);
+                    if (pcm && pcm.length) await vRtSendAudio(pcm);
+                } catch (_) { }
+            }, 1500);
+        }
+
         _vRecordTimeout = setTimeout(() => vStopRecording(), 30000);
     } catch (e) {
         vSetWaveMode('idle', 'ready');
@@ -3376,6 +3553,31 @@ async function vStopRecording() {
     clearTimeout(_vRecordTimeout);
     _vIsRecording = false;
     document.getElementById('v-mic-btn').style.background = 'linear-gradient(180deg,#1a6ed8,#0b4fa8)';
+
+    if (_vRtMode) {
+        // ElevenLabs realtime: flush remaining mic segments, then end the session.
+        if (_vRtChunkTimer) { clearInterval(_vRtChunkTimer); _vRtChunkTimer = null; }
+        vSetWaveMode('thinking', 'transcribing');
+        vSetStatus('Finishing…');
+        _vRecorder.onstop = async () => {
+            const blobType = _vRecordMime || (_vRecorder && _vRecorder.mimeType) || 'audio/webm';
+            const rawBlob = new Blob(_vChunks, { type: blobType });
+            _vChunks = [];
+            try {
+                if (rawBlob.size >= 256) {
+                    const pcm = await vNormalizeBlobToPcm(rawBlob, 44100);
+                    if (pcm && pcm.length) await vRtSendAudio(pcm);
+                }
+                // Give the agent a moment to finish, then end + stop polling.
+                setTimeout(async () => { await vRtStop(); }, 1500);
+            } catch (_) {
+                await vRtStop();
+            }
+        };
+        _vRecorder.stop();
+        return;
+    }
+
     vSetWaveMode('thinking', 'transcribing');
     vSetStatus('Transcribing…');
     _vRecorder.onstop = async () => {

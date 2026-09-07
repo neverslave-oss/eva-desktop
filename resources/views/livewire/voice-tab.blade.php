@@ -18,6 +18,7 @@
                 <option value="http://localhost:8779">Kernel-Evo (local :8779)</option>
                 <option value="http://localhost:8005">AI-Server (:8005)</option>
                 <option value="http://localhost:11434">Ollama (:11434)</option>
+                <option value="http://localhost:8768">ElevenLabs Realtime (:8768)</option>
             </select>
             <span id="v-server-status" style="font-size:0.72em;color:#8b949e;">—</span>
         </div>
