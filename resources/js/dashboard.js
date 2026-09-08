@@ -3748,6 +3748,33 @@ async function vStopRecording() {
         return;
     }
 
+    if (_vElTransport) {
+        // ElevenLabs as voice transport (STT + TTS) with a real brain.
+        // Feed the captured blob into the ElevenLabs transport exchange.
+        vSetWaveMode('thinking', 'transcribing');
+        vSetStatus('Transcribing…');
+        _vRecorder.onstop = async () => {
+            const durationMs = Date.now() - _vRecordStartedAt;
+            if (durationMs < 300) {
+                _vChunks = [];
+                vSetWaveMode('idle', 'ready');
+                vSetStatus('Recording too short — hold a bit longer');
+                return;
+            }
+            const blobType = _vRecordMime || (_vRecorder && _vRecorder.mimeType) || 'audio/webm';
+            const rawBlob = new Blob(_vChunks, { type: blobType });
+            _vChunks = [];
+            if (rawBlob.size < 256) {
+                vSetWaveMode('idle', 'ready');
+                vSetStatus('No valid audio captured — try again');
+                return;
+            }
+            await vElTransportProcess(rawBlob, blobType);
+        };
+        _vRecorder.stop();
+        return;
+    }
+
     vSetWaveMode('thinking', 'transcribing');
     vSetStatus('Transcribing…');
     _vRecorder.onstop = async () => {
