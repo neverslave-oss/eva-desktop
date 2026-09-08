@@ -20,6 +20,11 @@
                 <option value="http://localhost:11434">Ollama (:11434)</option>
                 <option value="http://localhost:8768">ElevenLabs Realtime (:8768)</option>
             </select>
+            <span style="font-size:0.75em;color:#8b949e;">Voice engine:</span>
+            <select id="v-voice-engine" class="dash-mono-input">
+                <option value="default">Default (native)</option>
+                <option value="elevenlabs">ElevenLabs (STT + TTS)</option>
+            </select>
             <span id="v-server-status" style="font-size:0.72em;color:#8b949e;">—</span>
         </div>
         <div id="v-selftest-results" style="display:none;margin-bottom:12px;padding:10px 12px;background:#11161e;border:1px solid #30363d;border-radius:8px;font-size:0.72em;color:#8b949e;"></div>

@@ -2812,6 +2812,8 @@ let _vRtMode = false;          // true when the ElevenLabs Realtime (:8768) serv
 let _vRtSessionId = null;      // active ElevenLabs realtime session id
 let _vRtPollTimer = null;      // interval handle for GET /rt/receive polling
 let _vRtChunkTimer = null;     // interval handle for streaming mic segments up
+let _vVoiceEngine = 'default'; // voice transport: 'default' (native) | 'elevenlabs'
+let _vElTransport = false;     // true when ElevenLabs is the voice transport (STT+TTS) + a real brain
 
 function vSetMicEnabled(enabled) {
     const btn = document.getElementById('v-mic-btn');
@@ -2967,7 +2969,12 @@ function initVoiceTab() {
     vSetWaveMode('idle', 'ready');
     vSetRetryEnabled(false);
     checkVoiceServer();
+    _vVoiceEngine = vVoiceEngine();
     document.getElementById('v-server-select').addEventListener('change', checkVoiceServer);
+    document.getElementById('v-voice-engine').addEventListener('change', () => {
+        _vVoiceEngine = vVoiceEngine();
+        checkVoiceServer();
+    });
     document.getElementById('v-self-test').addEventListener('click', runVoiceSelfTest);
     document.getElementById('v-retry-tts').addEventListener('click', async () => {
         await vRetryLastTts();
@@ -3008,6 +3015,10 @@ function vServerBase() {
     return document.getElementById('v-server-select')?.value || 'http://localhost:8779';
 }
 
+function vVoiceEngine() {
+    return document.getElementById('v-voice-engine')?.value || 'default';
+}
+
 async function vFetchWithTimeout(url, options = {}, timeoutMs = 60000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -3025,6 +3036,7 @@ async function vFetchWithTimeout(url, options = {}, timeoutMs = 60000) {
 async function checkVoiceServer() {
     const base = vServerBase();
     _vRtMode = base.includes('8768'); // ElevenLabs Realtime server selected
+    _vElTransport = _vVoiceEngine === 'elevenlabs' && !_vRtMode; // ElevenLabs transport + real brain
     const el = document.getElementById('v-server-status');
     try {
         const r = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
@@ -3051,6 +3063,47 @@ async function checkVoiceServer() {
             vSetMicEnabled(true);
             vSetWaveMode('idle', 'ready');
             vSetStatus('Ready — click mic to start/stop, or hold SPACE');
+            return;
+        }
+
+        if (_vElTransport) {
+            // ElevenLabs as voice transport: brain is a real server, ElevenLabs
+            // does STT + TTS. Verify the brain exposes /voice/chat and the
+            // ElevenLabs server (:8768) is reachable with STT+TTS.
+            let hasVoiceChat = false;
+            try {
+                const openapiRes = await fetch(`${base}/openapi.json`, { signal: AbortSignal.timeout(3000) });
+                if (openapiRes.ok) {
+                    const spec = await openapiRes.json();
+                    hasVoiceChat = !!spec?.paths?.['/voice/chat'];
+                }
+            } catch (_) { }
+            let elReady = false;
+            try {
+                const elRes = await fetch('http://localhost:8768/health', { signal: AbortSignal.timeout(3000) });
+                if (elRes.ok) {
+                    const elj = await elRes.json();
+                    elReady = Boolean(elj.status === 'up' && elj.realtime_configured && mediaSupported);
+                }
+            } catch (_) { }
+            _vVoiceReady = Boolean((j.status === 'ok' || j.llm) && hasVoiceChat && elReady);
+            if (!_vVoiceReady) {
+                const reason = !mediaSupported
+                    ? 'browser mic APIs unavailable'
+                    : (!elReady ? 'ElevenLabs server (:8768) not ready' : (!hasVoiceChat ? 'brain lacks /voice/chat' : 'server not ready'));
+                el.textContent = `⚠ ${reason}`;
+                el.style.color = '#d29922';
+                vSetMicEnabled(false);
+                vSetRetryEnabled(false);
+                vSetWaveMode('idle', 'offline');
+                vSetStatus('Voice not ready: ' + reason);
+                return;
+            }
+            el.textContent = `✅ ${j.status === 'ok' ? 'Kernel-Evo' : 'Brain'} + ElevenLabs voice`;
+            el.style.color = '#3fb950';
+            vSetMicEnabled(true);
+            vSetWaveMode('idle', 'ready');
+            vSetStatus('Ready — ElevenLabs voice, brain does the thinking');
             return;
         }
 
@@ -3489,6 +3542,123 @@ async function vRtStop() {
         } catch (_) { }
     }
     _vRtSessionId = null;
+}
+
+// ── ElevenLabs as voice transport (STT + TTS) with a real brain ───────────
+// Wraps raw 16-bit PCM mono bytes (little-endian) into a WAV blob for playback.
+function vWavFromPcm(pcm, sampleRate = 44100) {
+    const samples = new Float32Array(Math.floor(pcm.length / 2));
+    for (let i = 0, k = 0; i + 1 < pcm.length; i += 2, k++) {
+        const lo = pcm[i], hi = pcm[i + 1];
+        let s16 = (hi << 8) | lo;
+        if (s16 & 0x8000) s16 = s16 - 0x10000; // sign extend
+        samples[k] = s16 / 0x8000;
+    }
+    return vEncodeWavFromFloat32(samples, sampleRate);
+}
+
+// Runs the full ElevenLabs-transport voice exchange: STT on :8768 -> brain
+// /voice/chat -> ElevenLabs TTS on :8768 -> play. Called from vStopRecording
+// when _vElTransport is true.
+async function vElTransportProcess(rawBlob, blobType) {
+    _vProcessing = true;
+    const brain = vServerBase();
+    const el = 'http://localhost:8768';
+    try {
+        // Step 1: STT via ElevenLabs (:8768 /stt).
+        let uploadBlob = rawBlob;
+        let uploadExt = blobType.includes('ogg') ? 'ogg' : 'webm';
+        try {
+            const wavBlob = await vNormalizeBlobToWav(rawBlob);
+            if (wavBlob && wavBlob.size > 256) {
+                uploadBlob = wavBlob;
+                uploadExt = 'wav';
+            }
+        } catch (_) { }
+        const fd = new FormData();
+        fd.append('file', uploadBlob, `rec.${uploadExt}`);
+        const stt = await vFetchWithTimeout(`${el}/stt`, { method: 'POST', body: fd }, 45000);
+        if (!stt.ok) {
+            let msg = `STT ${stt.status}`;
+            try {
+                const ej = await stt.json();
+                if (ej?.detail) msg = ej.detail;
+            } catch (_) { }
+            throw new Error(msg);
+        }
+        const sj = await stt.json();
+        const userText = (sj.text || '').trim();
+        if (!userText) {
+            vSetWaveMode('idle', 'ready');
+            vSetStatus('Nothing heard — try again');
+            return;
+        }
+        vAddBubble('user', userText, null, false);
+        vSetWaveMode('thinking', 'thinking');
+        vSetStatus('Thinking…');
+
+        // Step 2: brain thinks via /voice/chat.
+        const cr = await vFetchWithTimeout(`${brain}/voice/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: userText, session_id: _vSessionId })
+        }, 210000);
+        if (!cr.ok) {
+            let msg = `Chat ${cr.status}`;
+            try {
+                const ej = await cr.json();
+                if (ej?.error) msg = ej.error;
+            } catch (_) { }
+            throw new Error(msg);
+        }
+        const ctype = cr.headers.get('Content-Type') || '';
+        let replyText = cr.headers.get('X-Assistant-Reply') || '';
+        if (!replyText && !ctype.includes('audio')) {
+            const j = await cr.json();
+            replyText = j.reply || j.error || '(no reply)';
+        }
+        _vLastAssistantText = replyText;
+        vAddBubble('assistant', replyText || '(audio reply)', null, false);
+
+        // Step 3: synthesize the reply with ElevenLabs TTS (:8768 /tts).
+        if (replyText.trim()) {
+            vSetWaveMode('cloning', 'cloning');
+            vSetStatus('Speaking…');
+            const tr = await vFetchWithTimeout(`${el}/tts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: replyText })
+            }, 60000);
+            if (tr.ok) {
+                const buf = await tr.arrayBuffer();
+                const pcm = new Uint8Array(buf);
+                if (pcm.length > 44) {
+                    const wav = vWavFromPcm(pcm, 44100);
+                    await vPlayBlob(wav);
+                    _vLastTtsError = '';
+                    vSetRetryEnabled(false);
+                } else {
+                    _vLastTtsError = 'ElevenLabs TTS produced no audio';
+                    vSetRetryEnabled(true);
+                }
+            } else {
+                _vLastTtsError = `TTS ${tr.status}`;
+                vSetRetryEnabled(true);
+            }
+        }
+        vSetWaveMode('idle', 'ready');
+        if (!_vLastTtsError) {
+            vSetStatus('Ready — click mic to start/stop, or hold SPACE');
+        } else {
+            vSetStatus(`Text reply ready. Voice delayed (${_vLastTtsError}).`);
+        }
+    } catch (e) {
+        vSetWaveMode('idle', 'ready');
+        vAddBubble('assistant', e.message, null, true);
+        vSetStatus('Error');
+    } finally {
+        _vProcessing = false;
+    }
 }
 
 async function vStartRecording() {
