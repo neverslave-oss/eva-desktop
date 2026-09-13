@@ -76,4 +76,16 @@
             </div>
         </div>
     </div>
+
+    {{-- Computer-use live stream (SSE from /computer/stream) --}}
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+        <div class="p-3 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-sm font-semibold text-white">🖥️ Computer Use</span>
+            <span id="computer-stream-status" style="font-size:.7em;color:#8b949e">idle</span>
+        </div>
+        <div id="computer-panel">
+            <div id="computer-caption" style="padding:8px 10px;border-bottom:1px solid #21262d;font-family:monospace;font-size:.75em;color:#79c0ff;min-height:20px;">Waiting for a computer-use run…</div>
+            <div id="computer-frame" style="width:100%;aspect-ratio:16/9;background:#0d1117;display:flex;align-items:center;justify-content:center;color:#8b949e;font-size:.75em;">No stream</div>
+        </div>
+    </div>
 </div>

@@ -1328,6 +1328,32 @@ scheduleGraphRebuild();
 
 // ── Live SSE updates — only connect when the Evolution tab is mounted
 const es = document.getElementById('graph-panel') ? new EventSource(kapi('/evolution/stream')) : null;
+
+// ── Computer-use live stream — connect when the Computer-use panel is mounted
+let computerES = null;
+const compFrame = document.getElementById('computer-frame');
+const compCaption = document.getElementById('computer-caption');
+const compStatus = document.getElementById('computer-stream-status');
+if (compFrame) {
+  computerES = new EventSource(kapi('/computer/stream'));
+  if (compStatus) { compStatus.textContent = 'connecting…'; }
+  computerES.onopen = () => { if (compStatus) compStatus.textContent = '● live'; };
+  computerES.onerror = () => { if (compStatus) compStatus.textContent = 'reconnecting…'; };
+  computerES.onmessage = (e) => {
+    let data;
+    try { data = JSON.parse(e.data); } catch (_) { return; }
+    if (compCaption && data.caption) compCaption.textContent = data.caption;
+    if (compFrame && data.screenshot) {
+      compFrame.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = data.screenshot.indexOf('data:') === 0 ? data.screenshot : 'data:image/png;base64,' + data.screenshot;
+      img.style.maxWidth = '100%'; img.style.maxHeight = '100%';
+      img.style.objectFit = 'contain';
+      compFrame.appendChild(img);
+    }
+  };
+  window.addEventListener('pagehide', () => computerES && computerES.close());
+}
 let totalEvents = EVENTS.length;
 
 function updateGaps(gaps) {
