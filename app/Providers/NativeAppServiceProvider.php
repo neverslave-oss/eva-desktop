@@ -30,7 +30,7 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
         Window::open(self::MAIN_WINDOW_ID)
             ->title('EvAgent Desktop')
-            ->route('chat')
+            ->route($this->startupRouteName())
             ->width(1280)
             ->height(800)
             ->position(80, 80)
@@ -41,6 +41,28 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             Window::current()->hide();
         });
 
+
+    protected function startupRouteName(): string
+    {
+        return $this->hasCompletedSetup() ? 'chat' : 'setup-wizard';
+    }
+
+    protected function hasCompletedSetup(): bool
+    {
+        $setupCompleted = filter_var(AppSetting::get('setup_completed', false), FILTER_VALIDATE_BOOLEAN);
+
+        if ($setupCompleted) {
+            return true;
+        }
+
+        foreach (['install_mode', 'install_dir', 'workspace_path'] as $legacyKey) {
+            if (AppSetting::has($legacyKey)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
         MenuBar::create()
             ->icon(public_path('icon.png'))
             ->label('EvAgent Desktop')

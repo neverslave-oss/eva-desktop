@@ -475,6 +475,7 @@ class SetupWizard extends Component
         AppSetting::set('workspace_path', $this->workspacePath);
         AppSetting::set('install_mode', $this->installMode === 'docker' ? 'docker' : 'baremetal');
         AppSetting::set('install_dir', $this->installMode === 'docker' ? $this->dockerRepoDir : $this->installDir);
+        AppSetting::set('setup_completed', true);
         AppSetting::set('collective_memory_url', $this->collectiveMemoryUrl);
         AppSetting::set('telegram_bot_token', $this->telegramBotToken);
         AppSetting::set('telegram_chat_id', $this->telegramChatId);

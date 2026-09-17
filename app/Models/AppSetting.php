@@ -22,6 +22,11 @@ class AppSetting extends Model
         static::updateOrCreate(['key' => $key], ['value' => $value]);
     }
 
+    public static function has(string $key): bool
+    {
+        return static::query()->whereKey($key)->exists();
+    }
+
     public static function many(array $keys): array
     {
         return static::whereIn('key', $keys)->pluck('value', 'key')->all();
