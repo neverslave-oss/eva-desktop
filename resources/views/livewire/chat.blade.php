@@ -218,16 +218,91 @@
 
         /* ── Telegram footer composer ── */
 
-        /* ── Right sidebar: tabbed viewers (Files / Mental Map / Browser / Computer use) ── */
+        /* ── Right sidebar: tabbed viewers (MOBILE-FIRST) ──
+           Small screens: full-height overlay (slide-in) with backdrop.
+           >=xl: persistent, resizable column beside the chat. */
         .agent-viewers {
-            width: 420px;
-            max-width: 46vw;
-            flex-shrink: 0;
-            min-height: 0;
+            --aw-w: 540px;                 /* desktop drag-resizable; JS overrides */
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: min(94vw, var(--aw-w));
+            max-width: 100vw;
+            z-index: 72;
             display: flex;
             flex-direction: column;
             border-left: 1px solid #223346;
             background: #0d151f;
+            transform: translateX(106%);
+            transition: transform .22s ease, box-shadow .22s ease;
+            box-shadow: none;
+        }
+        .agent-viewers.open {
+            transform: translateX(0);
+            box-shadow: -10px 0 28px rgba(0, 0, 0, .38);
+        }
+        .agent-viewers-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 7, 13, .55);
+            z-index: 71;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s ease;
+        }
+        .agent-viewers-backdrop.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        /* Desktop (xl+): persistent, resizable column inside the flex shell */
+        @media (min-width: 1280px) {
+            .agent-viewers {
+                position: relative;
+                top: auto;
+                right: auto;
+                bottom: auto;
+                height: auto;
+                width: var(--aw-w);
+                max-width: 100vw;
+                flex-shrink: 0;
+                min-height: 0;
+                transform: none;
+                z-index: auto;
+                box-shadow: none;
+                transition: none;
+            }
+            .agent-viewers-backdrop {
+                display: none;
+            }
+        }
+        /* Drag grip to resize on desktop */
+        .agent-viewers-grip {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: -5px;
+            width: 10px;
+            cursor: col-resize;
+            z-index: 3;
+            display: none;
+        }
+        @media (min-width: 1280px) {
+            .agent-viewers-grip {
+                display: block;
+            }
+            .agent-viewers-grip:hover,
+            .agent-viewers-grip.dragging {
+                background: rgba(42, 138, 212, .35);
+            }
+        }
+        .agent-viewers-toggle-btn {
+            display: inline-flex;
+        }
+        @media (min-width: 1280px) {
+            .agent-viewers-toggle-btn {
+                display: none;
+            }
         }
         .agent-viewers-tabs {
             display: flex;
@@ -332,6 +407,7 @@
                     </div>
                     <div class="agent-session-pill">Session <strong id="agent-session-id">—</strong></div>
                 </div>
+                <button class="dash-ctrl-btn agent-mini-btn agent-viewers-toggle-btn" id="agent-viewers-toggle" title="Viewers">➤</button>
             </div>
 
             {{-- scrollable thread --}}
@@ -387,7 +463,9 @@
         </div>{{-- /.agent-telegram-main --}}
 
         {{-- ── RIGHT SIDEBAR: tabbed viewers ─────────────────────────────── --}}
+        <div class="agent-viewers-backdrop" id="agent-viewers-backdrop"></div>
         <aside id="agent-viewers" class="agent-viewers" aria-label="Agent viewers">
+            <div class="agent-viewers-grip" id="agent-viewers-grip" title="Drag to resize"></div>
             <div class="agent-viewers-tabs" role="tablist">
                 <button class="agent-viewers-tab active" data-tab="files" role="tab" aria-selected="true">📁 Files</button>
                 <button class="agent-viewers-tab" data-tab="mental" role="tab" aria-selected="false">🧠 Map</button>
@@ -544,6 +622,56 @@
 
                 // Browser/Computer tabs are live noVNC iframes (shared desktop);
                 // no JS wiring needed — autoconnect handles it.
+
+                // ── Mobile-first toggle + backdrop ──
+                const viewersToggle = document.getElementById('agent-viewers-toggle');
+                const viewersBackdrop = document.getElementById('agent-viewers-backdrop');
+                function isViewersOpen() { return viewers.classList.contains('open'); }
+                function setViewersOpen(open) {
+                    viewers.classList.toggle('open', open);
+                    if (viewersBackdrop) viewersBackdrop.classList.toggle('open', open);
+                }
+                if (viewersToggle) {
+                    viewersToggle.addEventListener('click', () => setViewersOpen(!isViewersOpen()));
+                }
+                if (viewersBackdrop) {
+                    viewersBackdrop.addEventListener('click', () => setViewersOpen(false));
+                }
+                // Memory toolbar button also opens the viewer (mobile or desktop)
+                if (memToggle) {
+                    setViewersOpen(window.innerWidth < 1280 ? true : isViewersOpen());
+                    memToggle.addEventListener('click', () => {
+                        const filesTab = document.querySelector('.agent-viewers-tab[data-tab="files"]');
+                        if (filesTab) selectTab(filesTab);
+                        if (window.innerWidth < 1280) setViewersOpen(true);
+                    });
+                }
+
+                // ── Drag-to-resize on desktop (xl+), persisted ──
+                const grip = document.getElementById('agent-viewers-grip');
+                const storedW = localStorage.getItem('agent-viewers-width');
+                if (storedW) viewers.style.setProperty('--aw-w', storedW + 'px');
+                if (grip) {
+                    let dragging = false;
+                    grip.addEventListener('pointerdown', (e) => {
+                        if (window.innerWidth < 1280) return;
+                        dragging = true;
+                        grip.classList.add('dragging');
+                        e.preventDefault();
+                    });
+                    window.addEventListener('pointermove', (e) => {
+                        if (!dragging) return;
+                        const rect = viewers.parentElement.getBoundingClientRect();
+                        const w = Math.min(rect.width - 120, Math.max(300, rect.right - e.clientX));
+                        viewers.style.setProperty('--aw-w', w + 'px');
+                    });
+                    window.addEventListener('pointerup', () => {
+                        if (!dragging) return;
+                        dragging = false;
+                        grip.classList.remove('dragging');
+                        localStorage.setItem('agent-viewers-width', parseInt(viewers.style.getPropertyValue('--aw-w')) || 540);
+                    });
+                }
             }
         })();
     </script>
