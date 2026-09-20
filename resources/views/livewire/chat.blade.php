@@ -218,71 +218,103 @@
 
         /* ── Telegram footer composer ── */
 
-        .agent-memory-offcanvas-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(3, 7, 13, 0.58);
-            backdrop-filter: blur(1px);
-            z-index: 61;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .18s ease;
-        }
-
-        .agent-memory-offcanvas-backdrop.open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .agent-memory-offcanvas {
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: min(98vw, 1180px);
-            height: 100dvh;
-            background: #0d1117;
-            border-left: 1px solid #30363d;
-            z-index: 62;
-            transform: translateX(104%);
-            transition: transform .2s ease;
+        /* ── Right sidebar: tabbed viewers (Files / Mental Map / Browser / Computer use) ── */
+        .agent-viewers {
+            width: 420px;
+            max-width: 46vw;
+            flex-shrink: 0;
+            min-height: 0;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            border-left: 1px solid #223346;
+            background: #0d151f;
         }
-
-        .agent-memory-offcanvas.open {
-            transform: translateX(0);
-            z-index: 10000;
-        }
-
-        .agent-memory-offcanvas-topline {
+        .agent-viewers-tabs {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 12px;
-            border-bottom: 1px solid #30363d;
-            background: #11161e;
+            align-items: stretch;
+            border-bottom: 1px solid #223346;
+            background: rgba(18, 30, 43, .96);
+            flex-shrink: 0;
         }
-
-        .agent-memory-offcanvas-body {
+        .agent-viewers-tab {
             flex: 1;
+            padding: 10px 4px;
+            background: transparent;
+            color: #8eaac0;
+            border: none;
+            border-bottom: 2px solid transparent;
+            font-size: .72em;
+            line-height: 1.1;
+            cursor: pointer;
+            white-space: nowrap;
+            text-align: center;
+            transition: color .15s, background .15s, border-color .15s;
+        }
+        .agent-viewers-tab:hover {
+            color: #c9d7e4;
+        }
+        .agent-viewers-tab.active {
+            color: #fff;
+            border-bottom-color: #2a8ad4;
+            background: rgba(255, 255, 255, .03);
+        }
+        .agent-viewers-panel {
+            display: none;
+            flex: 1;
+            min-height: 0;
             overflow: auto;
         }
-
-        .agent-memory-offcanvas-body #memory-panel {
+        .agent-viewers-panel.active {
+            display: flex;
+            flex-direction: column;
+        }
+        .agent-viewers-panel iframe {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+            border: 0;
+            background: #0b1117;
+        }
+        /* Files tab: fit the workspace viewer into the sidebar */
+        #agent-viewers #memory-panel {
+            padding: 12px 14px;
             height: 100%;
-            min-height: 100%;
+            display: flex;
+            flex-direction: column;
         }
-
-        .agent-memory-offcanvas-body #mem-layout {
-            height: calc(100dvh - 220px);
+        #agent-viewers #mem-layout {
+            height: 100%;
+            min-height: 0;
         }
-
-        body.agent-memory-open {
-            overflow: hidden;
+        #agent-viewers #mem-tree-panel {
+            flex-shrink: 0;
+            max-height: 46%;
+            overflow: auto;
         }
-
+        #agent-viewers #mem-editor-panel {
+            flex: 1;
+            min-height: 0;
+        }
+        .agent-viewers-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-bottom: 1px solid #223346;
+            background: rgba(18, 30, 43, .96);
+            flex-shrink: 0;
+        }
+        .agent-viewers-bar input {
+            flex: 1;
+            min-width: 0;
+            background: #142434;
+            color: #e4eef7;
+            border: 1px solid #2f4b67;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: .76em;
+            font-family: monospace;
+        }
 
     </style>
 
@@ -353,19 +385,48 @@
             </div>
 
         </div>{{-- /.agent-telegram-main --}}
-    </div>{{-- /#agent-telegram-shell --}}
 
-    {{-- ── MEMORY OFFCANVAS (full Memory tab) ───────────────────────── --}}
-    <div class="agent-memory-offcanvas-backdrop" id="agent-memory-offcanvas-backdrop"></div>
-    <aside id="agent-memory-offcanvas" class="agent-memory-offcanvas" aria-hidden="true" aria-label="Memory and workspace panel">
-        <div class="agent-memory-offcanvas-topline">
-            <div class="panel-title" style="margin-bottom:0;">Memory &amp; Workspace</div>
-            <button id="agent-memory-offcanvas-close" class="dash-ctrl-btn agent-mini-btn">Close</button>
-        </div>
-        <div class="agent-memory-offcanvas-body">
-            @include('livewire.memory-tab')
-        </div>
-    </aside>
+        {{-- ── RIGHT SIDEBAR: tabbed viewers ─────────────────────────────── --}}
+        <aside id="agent-viewers" class="agent-viewers" aria-label="Agent viewers">
+            <div class="agent-viewers-tabs" role="tablist">
+                <button class="agent-viewers-tab active" data-tab="files" role="tab" aria-selected="true">📁 Files</button>
+                <button class="agent-viewers-tab" data-tab="mental" role="tab" aria-selected="false">🧠 Map</button>
+                <button class="agent-viewers-tab" data-tab="browser" role="tab" aria-selected="false">🌐 Browser</button>
+                <button class="agent-viewers-tab" data-tab="computer" role="tab" aria-selected="false">🖥️ Use</button>
+            </div>
+
+            <section class="agent-viewers-panel active" data-panel="files" role="tabpanel">
+                @include('livewire.workspace-tab')
+            </section>
+
+            <section class="agent-viewers-panel" data-panel="mental" role="tabpanel">
+                <iframe id="agent-mentalmap-frame" loading="lazy" src="http://localhost:3131/"
+                        title="Mental Map" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+            </section>
+
+            <section class="agent-viewers-panel" data-panel="browser" role="tabpanel">
+                <div class="agent-viewers-bar">
+                    <span style="font-size:.72em;color:#8eaac0;">🌐 Browser driver preview</span>
+                    <span id="browser-stream-status" style="font-size:.7em;color:#8b949e;margin-left:auto;">idle</span>
+                </div>
+                <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#0b1117;">
+                    <div id="browser-caption" style="padding:8px 12px;border-bottom:1px solid #21262d;font-family:monospace;font-size:.75em;color:#79c0ff;min-height:20px;">Waiting for a browser-driver run…</div>
+                    <div id="browser-frame" style="flex:1;aspect-ratio:16/9;background:#0b1117;display:flex;align-items:center;justify-content:center;color:#8b949e;font-size:.75em;">No stream</div>
+                </div>
+            </section>
+
+            <section class="agent-viewers-panel" data-panel="computer" role="tabpanel">
+                <div class="agent-viewers-bar">
+                    <span style="font-size:.72em;color:#8eaac0;">🖥️ Computer-use live stream</span>
+                    <span id="computer-stream-status" style="font-size:.7em;color:#8b949e;margin-left:auto;">idle</span>
+                </div>
+                <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#0b1117;">
+                    <div id="computer-caption" style="padding:8px 12px;border-bottom:1px solid #21262d;font-family:monospace;font-size:.75em;color:#79c0ff;min-height:20px;">Waiting for a computer-use run…</div>
+                    <div id="computer-frame" style="flex:1;aspect-ratio:16/9;background:#0b1117;display:flex;align-items:center;justify-content:center;color:#8b949e;font-size:.75em;">No stream</div>
+                </div>
+            </section>
+        </aside>
+    </div>{{-- /#agent-telegram-shell --}}
 
     {{-- Overlays (inspector, command sheet, provider sheet) --}}
     <div class="agent-inspector" id="agent-inspector">
@@ -460,36 +521,56 @@
                 actionSheet.addEventListener('click', (e) => e.stopPropagation());
             }
 
-            const offcanvas = document.getElementById('agent-memory-offcanvas');
-            const backdrop = document.getElementById('agent-memory-offcanvas-backdrop');
-            const toggleBtn = document.getElementById('agent-memory-toggle');
-            const closeBtn = document.getElementById('agent-memory-offcanvas-close');
-            if (!offcanvas || !backdrop || !toggleBtn || !closeBtn) return;
+            // ── Right sidebar tab switching ──
+            const viewers = document.getElementById('agent-viewers');
+            if (viewers) {
+                const tabs = Array.from(viewers.querySelectorAll('.agent-viewers-tab'));
+                const panels = Array.from(viewers.querySelectorAll('.agent-viewers-panel'));
+                function selectTab(tab) {
+                    tabs.forEach(t => {
+                        const active = t === tab;
+                        t.classList.toggle('active', active);
+                        t.setAttribute('aria-selected', active ? 'true' : 'false');
+                    });
+                    panels.forEach(p => p.classList.toggle('active', p.dataset.panel === tab.dataset.tab));
+                    if (tab.dataset.tab === 'files' && typeof loadWorkspaceTree === 'function') loadWorkspaceTree('/');
+                }
+                tabs.forEach(tab => tab.addEventListener('click', () => selectTab(tab)));
 
-            function isOpen() {
-                return offcanvas.classList.contains('open');
-            }
+                // Memory toolbar button now opens the sidebar Files tab
+                const memToggle = document.getElementById('agent-memory-toggle');
+                if (memToggle) {
+                    memToggle.addEventListener('click', () => {
+                        const filesTab = document.querySelector('.agent-viewers-tab[data-tab="files"]');
+                        if (filesTab) selectTab(filesTab);
+                    });
+                }
 
-            function setOpen(open) {
-                offcanvas.classList.toggle('open', open);
-                backdrop.classList.toggle('open', open);
-                offcanvas.setAttribute('aria-hidden', open ? 'false' : 'true');
-                toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-                document.body.classList.toggle('agent-memory-open', open);
-
-                if (open) {
-                    if (typeof loadMemoryStats === 'function') loadMemoryStats();
-                    if (typeof loadWorkspaceTree === 'function') loadWorkspaceTree('/');
+                // Browser tab: live preview from the computer-use expansion's
+                // browser/desktop drivers — same publish_watch hub as the
+                // computer-use stream, rendered into its own frame.
+                const browserFrame = document.getElementById('browser-frame');
+                const browserCaption = document.getElementById('browser-caption');
+                const browserStatus = document.getElementById('browser-stream-status');
+                if (browserFrame) {
+                    let browserES = new EventSource(kapi('/computer/stream'));
+                    browserES.onopen = () => { if (browserStatus) browserStatus.textContent = '● live' };
+                    browserES.onerror = () => { if (browserStatus) browserStatus.textContent = 'reconnecting…' };
+                    browserES.onmessage = (e) => {
+                        let d; try { d = JSON.parse(e.data); } catch (_) { return; }
+                        if (browserCaption && d.caption) browserCaption.textContent = d.caption;
+                        if (browserFrame && d.screenshot) {
+                            browserFrame.innerHTML = '';
+                            const img = document.createElement('img');
+                            img.src = d.screenshot.indexOf('data:') === 0 ? d.screenshot : 'data:image/png;base64,' + d.screenshot;
+                            img.style.maxWidth = '100%'; img.style.maxHeight = '100%';
+                            img.style.objectFit = 'contain';
+                            browserFrame.appendChild(img);
+                        }
+                    };
+                    window.addEventListener('pagehide', () => browserES && browserES.close());
                 }
             }
-
-            toggleBtn.addEventListener('click', () => setOpen(!isOpen()));
-            closeBtn.addEventListener('click', () => setOpen(false));
-            backdrop.addEventListener('click', () => setOpen(false));
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && isOpen()) setOpen(false);
-            });
         })();
     </script>
 </div>
