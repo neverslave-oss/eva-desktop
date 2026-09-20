@@ -406,24 +406,20 @@
 
             <section class="agent-viewers-panel" data-panel="browser" role="tabpanel">
                 <div class="agent-viewers-bar">
-                    <span style="font-size:.72em;color:#8eaac0;">🌐 Browser driver preview</span>
-                    <span id="browser-stream-status" style="font-size:.7em;color:#8b949e;margin-left:auto;">idle</span>
+                    <span style="font-size:.72em;color:#8eaac0;">🌐 Browser — live desktop view</span>
+                    <span style="font-size:.66em;color:#3fb950;margin-left:auto;">● live</span>
                 </div>
-                <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#0b1117;">
-                    <div id="browser-caption" style="padding:8px 12px;border-bottom:1px solid #21262d;font-family:monospace;font-size:.75em;color:#79c0ff;min-height:20px;">Waiting for a browser-driver run…</div>
-                    <div id="browser-frame" style="flex:1;aspect-ratio:16/9;background:#0b1117;display:flex;align-items:center;justify-content:center;color:#8b949e;font-size:.75em;">No stream</div>
-                </div>
+                <iframe id="browser-frame" src="http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port=6080&autoconnect=1&reconnect=1&resize=scale"
+                        title="Browser noVNC viewer" allow="clipboard-read; clipboard-write" style="flex:1;width:100%;min-height:0;border:0;background:#0b1117;"></iframe>
             </section>
 
             <section class="agent-viewers-panel" data-panel="computer" role="tabpanel">
                 <div class="agent-viewers-bar">
-                    <span style="font-size:.72em;color:#8eaac0;">🖥️ Computer-use live stream</span>
-                    <span id="computer-stream-status" style="font-size:.7em;color:#8b949e;margin-left:auto;">idle</span>
+                    <span style="font-size:.72em;color:#8eaac0;">🖥️ Computer Use — live desktop view</span>
+                    <span style="font-size:.66em;color:#3fb950;margin-left:auto;">● live</span>
                 </div>
-                <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#0b1117;">
-                    <div id="computer-caption" style="padding:8px 12px;border-bottom:1px solid #21262d;font-family:monospace;font-size:.75em;color:#79c0ff;min-height:20px;">Waiting for a computer-use run…</div>
-                    <div id="computer-frame" style="flex:1;aspect-ratio:16/9;background:#0b1117;display:flex;align-items:center;justify-content:center;color:#8b949e;font-size:.75em;">No stream</div>
-                </div>
+                <iframe id="computer-frame" src="http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port=6080&autoconnect=1&reconnect=1&resize=scale"
+                        title="Computer-use noVNC viewer" allow="clipboard-read; clipboard-write" style="flex:1;width:100%;min-height:0;border:0;background:#0b1117;"></iframe>
             </section>
         </aside>
     </div>{{-- /#agent-telegram-shell --}}
@@ -546,30 +542,8 @@
                     });
                 }
 
-                // Browser tab: live preview from the computer-use expansion's
-                // browser/desktop drivers — same publish_watch hub as the
-                // computer-use stream, rendered into its own frame.
-                const browserFrame = document.getElementById('browser-frame');
-                const browserCaption = document.getElementById('browser-caption');
-                const browserStatus = document.getElementById('browser-stream-status');
-                if (browserFrame) {
-                    let browserES = new EventSource(kapi('/computer/stream'));
-                    browserES.onopen = () => { if (browserStatus) browserStatus.textContent = '● live' };
-                    browserES.onerror = () => { if (browserStatus) browserStatus.textContent = 'reconnecting…' };
-                    browserES.onmessage = (e) => {
-                        let d; try { d = JSON.parse(e.data); } catch (_) { return; }
-                        if (browserCaption && d.caption) browserCaption.textContent = d.caption;
-                        if (browserFrame && d.screenshot) {
-                            browserFrame.innerHTML = '';
-                            const img = document.createElement('img');
-                            img.src = d.screenshot.indexOf('data:') === 0 ? d.screenshot : 'data:image/png;base64,' + d.screenshot;
-                            img.style.maxWidth = '100%'; img.style.maxHeight = '100%';
-                            img.style.objectFit = 'contain';
-                            browserFrame.appendChild(img);
-                        }
-                    };
-                    window.addEventListener('pagehide', () => browserES && browserES.close());
-                }
+                // Browser/Computer tabs are live noVNC iframes (shared desktop);
+                // no JS wiring needed — autoconnect handles it.
             }
         })();
     </script>
