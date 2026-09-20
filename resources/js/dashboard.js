@@ -883,6 +883,207 @@ function switchAgentSession(chatId) {
     if (listEl) loadAgentSessions(listEl);
 }
 
+// ── Chat session tabs (multi-thread main panel) ─────────────────────────────
+// The Live tab always hosts #agent-thread and keeps the existing 2s global poll
+// (syncAgentLiveThread → #agent-thread) untouched. Past sessions are opened as
+// extra, read-only tabs; sends always go to the Live session.
+const _agentChatTabs = {};   // chatId -> { title, viewEl, tabEl, loaded }
+let _agentActiveChatTab = 'live';
+
+function _agentRenderHistoryInto(container, rows) {
+    if (!container) return;
+    const history = Array.isArray(rows) ? rows : [];
+    container.innerHTML = '';
+    if (!history.length) {
+        const empty = document.createElement('div');
+        empty.className = 'agent-bubble assistant';
+        empty.textContent = 'No persisted conversation yet.';
+        container.appendChild(empty);
+        return;
+    }
+    history.forEach(turn => {
+        const roleRaw = String(turn?.role || '').toLowerCase();
+        const role = roleRaw === 'user' ? 'user' : 'assistant';
+        const bubble = document.createElement('div');
+        bubble.className = `agent-bubble ${role}`;
+        bubble.dataset.role = role;
+        bubble.textContent = String(turn?.content || '');
+        const meta = document.createElement('div');
+        meta.className = 'agent-bubble-meta';
+        const who = role === 'user' ? 'User' : 'Agent';
+        const src = agentSourceLabel(turn?.session_id);
+        const when = turn?.created_at ? new Date(turn.created_at).toLocaleTimeString() : 'unknown time';
+        meta.textContent = `${who} · ${src} · ${when}`;
+        bubble.appendChild(meta);
+        container.appendChild(bubble);
+    });
+    container.scrollTop = container.scrollHeight;
+}
+
+function agentSelectChatTab(chatId) {
+    _agentActiveChatTab = chatId;
+    document.querySelectorAll('.agent-chat-tab').forEach(t => {
+        const active = t.getAttribute('data-chat-id') === chatId;
+        t.classList.toggle('active', active);
+        t.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('.agent-chat-thread-view').forEach(v => {
+        v.classList.toggle('active', v.getAttribute('data-chat-id') === chatId);
+    });
+}
+
+async function loadAgentSessionTabHistory(chatId, viewEl) {
+    if (!viewEl || !chatId || chatId === 'live') return;
+    try {
+        const data = await fetchJsonWithTimeout(
+            kapi(`/debug/chat-history?chat_id=${encodeURIComponent(chatId)}&include_all=false&limit=400`),
+            7000
+        );
+        _agentRenderHistoryInto(viewEl, Array.isArray(data.history) ? data.history : []);
+    } catch (_) {
+        _agentRenderHistoryInto(viewEl, []);
+        const note = document.createElement('div');
+        note.className = 'agent-bubble assistant';
+        note.textContent = `Failed to load session ${chatId}.`;
+        viewEl.appendChild(note);
+    }
+}
+
+function agentOpenSessionTab(chatId, title) {
+    if (!chatId) return;
+    // If already open, just focus it.
+    if (_agentChatTabs[chatId]) {
+        agentSelectChatTab(chatId);
+        return;
+    }
+
+    const tabsEl = document.getElementById('agent-chat-tabs');
+    const viewsEl = document.getElementById('agent-chat-thread-views');
+    if (!tabsEl || !viewsEl) return;
+
+    const label = (title && String(title).trim()) || chatId;
+
+    const tab = document.createElement('button');
+    tab.className = 'agent-chat-tab';
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', 'false');
+    tab.dataset.chatId = chatId;
+    tab.title = `Session ${chatId}`;
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'agent-chat-tab-label';
+    labelSpan.textContent = label;
+    tab.appendChild(labelSpan);
+    const close = document.createElement('span');
+    close.className = 'agent-chat-tab-close';
+    close.textContent = '×';
+    close.title = 'Close tab';
+    tab.appendChild(close);
+    tabsEl.appendChild(tab);
+
+    const view = document.createElement('div');
+    view.className = 'agent-chat-thread-view';
+    view.dataset.chatId = chatId;
+    const thread = document.createElement('div');
+    thread.className = 'agent-thread activity-scroll flex-1';
+    view.appendChild(thread);
+    viewsEl.appendChild(view);
+
+    _agentChatTabs[chatId] = { title: label, viewEl: view, tabEl: tab, threadEl: thread, loaded: false };
+
+    agentSelectChatTab(chatId);
+    loadAgentSessionTabHistory(chatId, thread);
+}
+
+function agentCloseSessionTab(chatId) {
+    if (!chatId || chatId === 'live') return;
+    const tabInfo = _agentChatTabs[chatId];
+    if (!tabInfo) return;
+    tabInfo.tabEl.remove();
+    tabInfo.viewEl.remove();
+    delete _agentChatTabs[chatId];
+    // If the closed tab was active, fall back to the Live tab.
+    if (_agentActiveChatTab === chatId) agentSelectChatTab('live');
+}
+
+// Offcanvas picker: same /api/sessions data, but rows open a chat tab instead.
+async function loadAgentPastSessions(containerEl) {
+    if (!containerEl) return;
+    let sessions = [];
+    try {
+        const res = await fetch('/api/sessions', { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        sessions = Array.isArray(data.sessions) ? data.sessions : [];
+    } catch (_) {
+        // agent offline — fall through to the empty state below
+    }
+    if (!sessions.length) {
+        containerEl.innerHTML =
+            '<div class="agent-session-empty">No saved sessions yet.<br>Start a conversation or press "New Session".</div>';
+        return;
+    }
+    containerEl.innerHTML = sessions.map((s) => {
+        const chatId = String(s.chat_id || '');
+        const title = s.title || chatId || '(untitled)';
+        const when = s.updated_at ? new Date(s.updated_at).toLocaleString() : '';
+        return `<button class="agent-past-session-row" data-chat-id="${agentEscapeText(chatId)}" title="${agentEscapeText(when)}">
+            <span class="agent-past-session-row-title">${agentEscapeText(title)}</span>
+            <span class="agent-past-session-row-chat">${agentEscapeText(chatId)}</span>
+        </button>`;
+    }).join('');
+
+    containerEl.querySelectorAll('.agent-past-session-row').forEach((row) => {
+        row.addEventListener('click', () => {
+            const chatId = row.getAttribute('data-chat-id') || '';
+            const title = row.querySelector('.agent-past-session-row-title')?.textContent || chatId;
+            setAgentSessionsOffcanvasOpen(false);
+            agentOpenSessionTab(chatId, title);
+        });
+    });
+}
+
+function setAgentSessionsOffcanvasOpen(open) {
+    const off = document.getElementById('agent-sessions-offcanvas');
+    const backdrop = document.getElementById('agent-sessions-offcanvas-backdrop');
+    const isOpen = Boolean(open);
+    if (off) off.classList.toggle('open', isOpen);
+    if (backdrop) backdrop.classList.toggle('open', isOpen);
+    if (isOpen && typeof loadAgentPastSessions === 'function') {
+        loadAgentPastSessions(document.getElementById('agent-past-session-list'));
+    }
+}
+
+let _agentChatTabsInit = false;
+
+function initAgentChatTabs() {
+    const tabsEl = document.getElementById('agent-chat-tabs');
+    const openBtn = document.getElementById('agent-sessions-open');
+    // Wire once per page/DOM lifetime; on livewire:navigated the whole view
+    // re-renders, so re-run wiring against the fresh DOM.
+    const sameEl = _agentChatTabsInit && tabsEl === _agentChatTabsInit.tabsEl;
+    if (sameEl && openBtn === _agentChatTabsInit.openBtn) return;
+    _agentChatTabsInit = { tabsEl, openBtn };
+
+    if (tabsEl) {
+        tabsEl.addEventListener('click', (ev) => {
+            const closeBtn = ev.target.closest('.agent-chat-tab-close');
+            const tab = ev.target.closest('.agent-chat-tab');
+            if (!tab) return;
+            const chatId = tab.getAttribute('data-chat-id') || 'live';
+            if (closeBtn) {
+                agentCloseSessionTab(chatId);
+                return;
+            }
+            agentSelectChatTab(chatId);
+        });
+    }
+
+    if (openBtn) openBtn.addEventListener('click', () => setAgentSessionsOffcanvasOpen(true));
+    const closeBtn = document.getElementById('agent-sessions-offcanvas-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => setAgentSessionsOffcanvasOpen(false));
+    const backdrop = document.getElementById('agent-sessions-offcanvas-backdrop');
+    if (backdrop) backdrop.addEventListener('click', () => setAgentSessionsOffcanvasOpen(false));
+}
+
 function initAgentTab() {
     if (_agentInitDone) return;
     _agentInitDone = true;
@@ -4021,6 +4222,7 @@ function initCurrentPage() {
         if (typeof fullRefresh === 'function') fullRefresh();
     }
     if (document.getElementById('agent-thread') && typeof initAgentTab === 'function') initAgentTab();
+    if (document.getElementById('agent-chat-tabs') && typeof initAgentChatTabs === 'function') initAgentChatTabs();
     if (document.getElementById('skill-list')) { loadSkills(); loadRoutines(); }
     if (document.getElementById('rep-list')) loadReplicas();
     if (document.getElementById('traj-list')) loadTrajectories();
