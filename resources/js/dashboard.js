@@ -800,6 +800,89 @@ async function agentNewSession() {
     }
 }
 
+// ── Sessions switcher (💬 Sessions sidebar tab) ─────────────────────────────
+// These hit the Laravel proxy at /api/sessions (NOT kapi()/8779 directly) so
+// the origin/CORS stays consistent with the rest of the desktop app.
+
+async function loadAgentSessions(containerEl) {
+    if (!containerEl) return;
+    let sessions = [];
+    try {
+        const res = await fetch('/api/sessions', { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        sessions = Array.isArray(data.sessions) ? data.sessions : [];
+    } catch (_) {
+        // agent offline — fall through to the empty state below
+    }
+
+    const active = agentSessionId();
+    if (!sessions.length) {
+        containerEl.innerHTML =
+            '<div class="agent-session-empty">No saved sessions yet.<br>Start a conversation or press "New Session".</div>';
+        return;
+    }
+    containerEl.innerHTML = sessions.map((s) => {
+        const chatId = String(s.chat_id || '');
+        const title = s.title || chatId || '(untitled)';
+        const when = s.updated_at ? new Date(s.updated_at).toLocaleString() : '';
+        const isActive = chatId === active ? ' active' : '';
+        return `<button class="agent-session-row${isActive}" data-chat-id="${agentEscapeText(chatId)}" title="${agentEscapeText(when)}">
+            <span class="agent-session-row-title">${agentEscapeText(title)}</span>
+            <span class="agent-session-row-chat">${agentEscapeText(chatId)}</span>
+        </button>`;
+    }).join('');
+
+    containerEl.querySelectorAll('.agent-session-row').forEach((row) => {
+        row.addEventListener('click', () => switchAgentSession(row.getAttribute('data-chat-id') || ''));
+    });
+}
+
+async function createAgentSession() {
+    let created = null;
+    try {
+        const res = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: '', title: '' }),
+            cache: 'no-store',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.chat_id) created = data;
+    } catch (_) {
+        // agent offline — fall back to a local session id below
+    }
+
+    // NOTE: the current `syncAgentLiveThread` polls with include_all=true, so it
+    // keeps rendering the global history regardless of the active chat_id. That
+    // is pre-existing behaviour and intentionally left unchanged (surgical
+    // scope). Switching here updates the chat_id used for sends, the session
+    // badge, and the inspector, and clears the visible thread.
+    const sessionId = created ? String(created.chat_id) : stableSessionId('agent');
+    setAgentSessionId(sessionId);
+    setAgentSelectedPromptId('');
+    updateAgentSessionBadge(sessionId);
+    agentClearThread();
+    agentAppendBubble('assistant', `New session ready: ${sessionId}`);
+    agentSetStatus(`Ready · session ${sessionId}`);
+    refreshAgentInspector();
+    const listEl = document.getElementById('agent-session-list');
+    if (listEl) loadAgentSessions(listEl);
+}
+
+function switchAgentSession(chatId) {
+    if (!chatId) return;
+    // Persist active selection so a reload keeps the current session.
+    setAgentSessionId(chatId);
+    setAgentSelectedPromptId('');
+    updateAgentSessionBadge(chatId);
+    agentClearThread();
+    agentAppendBubble('assistant', `Switched to session ${chatId}`);
+    agentSetStatus(`Ready · session ${chatId}`);
+    refreshAgentInspector();
+    const listEl = document.getElementById('agent-session-list');
+    if (listEl) loadAgentSessions(listEl);
+}
+
 function initAgentTab() {
     if (_agentInitDone) return;
     _agentInitDone = true;
@@ -3958,7 +4041,7 @@ const _exports = {
     sqliteClearTable, sqliteClearAllTables, sqliteRefresh, sqliteClose, sqliteNextPage, sqlitePrevPage,
     ctrlAction, triggerEvolution, toggleGraphLayer, createBackup, runInit,
     spawnReplica, stopReplica, launchPipeline, toggleTraj,
-    applyAgentProviderControls,
+    applyAgentProviderControls, loadAgentSessions, switchAgentSession, createAgentSession,
     initCurrentPage, kernelAgentAction,
 };
 Object.assign(window, _exports);

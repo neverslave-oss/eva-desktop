@@ -103,6 +103,26 @@ Route::get('/debug/prompt-logs', function (\Illuminate\Http\Request $request) {
     }
 })->name('debug.prompt-logs');
 
+// Proxy the conversations/sessions API to the kernel-evolving agent; returns an
+// empty list gracefully when the agent is offline (mirrors /debug/prompt-logs).
+Route::get('/api/sessions', function () {
+    try {
+        $resp = \Illuminate\Support\Facades\Http::timeout(5)->get('http://127.0.0.1:8779/api/sessions');
+        return response()->json($resp->json() ?? ['sessions' => []]);
+    } catch (\Throwable) {
+        return response()->json(['sessions' => []]);
+    }
+})->name('api.sessions.list');
+
+Route::post('/api/sessions', function (\Illuminate\Http\Request $request) {
+    try {
+        $resp = \Illuminate\Support\Facades\Http::timeout(5)->post('http://127.0.0.1:8779/api/sessions', $request->only(['chat_id', 'title']));
+        return response()->json($resp->json() ?? ['ok' => false]);
+    } catch (\Throwable) {
+        return response()->json(['ok' => false, 'error' => 'kernel-evolving unreachable'], 502);
+    }
+})->name('api.sessions.create');
+
 // Tunnel lifecycle — spawns/kills `php artisan tunnel:start --daemon`
 Route::post('/settings/tunnel/start', function () {
     $result = app(\App\Services\TunnelManagerService::class)->start();
