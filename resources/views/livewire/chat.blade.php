@@ -502,6 +502,132 @@
         .agent-terminal-view.active { display: block; }
         .agent-terminal-view .xterm { height: 100%; }
 
+        /* ── Chat session tabs (multi-thread) ── */
+        .agent-chat-tabs {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-bottom: 1px solid #223346;
+            background: rgba(18, 30, 43, .96);
+            flex-shrink: 0;
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+        .agent-chat-tab {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #223346;
+            background: #101b29;
+            color: #8eaac0;
+            border-radius: 6px;
+            padding: 5px 9px;
+            font-size: 13px;
+            cursor: pointer;
+            max-width: 220px;
+            white-space: nowrap;
+        }
+        .agent-chat-tab .agent-chat-tab-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .agent-chat-tab:hover { border-color: #2a8ad4; }
+        .agent-chat-tab.active { border-color: #2a8ad4; color: #e4eef7; background: #14283c; }
+        .agent-chat-tab-close {
+            color: #8eaac0;
+            line-height: 1;
+            font-size: 15px;
+            padding: 0 2px;
+            flex-shrink: 0;
+        }
+        .agent-chat-tab-close:hover { color: #f85149; }
+        .agent-chat-thread-views {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .agent-chat-thread-view {
+            flex: 1;
+            min-height: 0;
+            display: none;
+            flex-direction: column;
+        }
+        .agent-chat-thread-view.active { display: flex; }
+        .agent-chat-thread-view .agent-thread { flex: 1; }
+
+        /* ── Past sessions offcanvas ── */
+        .agent-sessions-open-btn { display: inline-flex; }
+        .agent-sessions-offcanvas-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 7, 13, 0.58);
+            backdrop-filter: blur(1px);
+            z-index: 12000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .18s ease;
+        }
+        .agent-sessions-offcanvas-backdrop.open { opacity: 1; pointer-events: auto; }
+        .agent-sessions-offcanvas {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: min(96vw, 420px);
+            height: 100dvh;
+            background: #0d1117;
+            border-left: 1px solid #223346;
+            z-index: 12001;
+            transform: translateX(104%);
+            transition: transform .2s ease;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .agent-sessions-offcanvas.open { transform: translateX(0); z-index: 12002; }
+        .agent-sessions-offcanvas-topline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 12px;
+            border-bottom: 1px solid #223346;
+            background: #11161e;
+            flex-shrink: 0;
+        }
+        .agent-sessions-offcanvas-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .agent-sessions-offcanvas-body .agent-session-list { flex: 1; min-height: 0; }
+        .agent-past-session-row {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            text-align: left;
+            padding: 9px 11px;
+            border-radius: 9px;
+            border: 1px solid #223346;
+            background: #101b29;
+            color: #c9d7e4;
+            cursor: pointer;
+            transition: border-color .15s, background .15s;
+        }
+        .agent-past-session-row:hover { border-color: #2a8ad4; background: #122031; }
+        .agent-past-session-row-title { font-size: 15px; font-weight: 600; color: #e4eef7; }
+        .agent-past-session-row-chat { font-size: 12px; color: #6e9cbf; font-family: monospace; word-break: break-all; }
+
+        @media (max-width: 600px) {
+            .agent-sessions-offcanvas { width: 100vw; }
+            .agent-chat-tabs { padding: 6px 8px; }
+        }
+
     </style>
 
     <div id="agent-telegram-shell" class="agent-telegram-shell">
@@ -518,12 +644,24 @@
                     </div>
                     <div class="agent-session-pill">Session <strong id="agent-session-id">—</strong></div>
                 </div>
-                <button class="dash-ctrl-btn agent-mini-btn agent-viewers-toggle-btn" id="agent-viewers-toggle" title="Viewers">➤</button>
+                <div class="agent-telegram-toolbar">
+                    <button class="dash-ctrl-btn agent-mini-btn agent-sessions-open-btn" id="agent-sessions-open" title="Chat sessions">💬</button>
+                    <button class="dash-ctrl-btn agent-mini-btn agent-viewers-toggle-btn" id="agent-viewers-toggle" title="Viewers">➤</button>
+                </div>
+            </div>
+
+            {{-- chat session tabs strip (Live always present; past sessions open as tabs) --}}
+            <div class="agent-chat-tabs" id="agent-chat-tabs" role="tablist" aria-label="Chat threads">
+                <button class="agent-chat-tab active" data-chat-id="live" role="tab" aria-selected="true" title="Live session">● Live</button>
             </div>
 
             {{-- scrollable thread --}}
             <div class="agent-telegram-thread-wrap">
-                <div class="agent-thread activity-scroll flex-1" id="agent-thread"></div>
+                <div class="agent-chat-thread-views" id="agent-chat-thread-views">
+                    <div class="agent-chat-thread-view active" data-chat-id="live" id="agent-chat-live-view">
+                        <div class="agent-thread activity-scroll flex-1" id="agent-thread"></div>
+                    </div>
+                </div>
 
                 {{-- sticky footer: action-sheet + composer row --}}
                 <div class="agent-controls">
@@ -572,6 +710,18 @@
             </div>
 
         </div>{{-- /.agent-telegram-main --}}
+
+        {{-- ── Past sessions offcanvas (slide-over picker) ────────────────── --}}
+        <div class="agent-sessions-offcanvas-backdrop" id="agent-sessions-offcanvas-backdrop"></div>
+        <div class="agent-sessions-offcanvas" id="agent-sessions-offcanvas" role="dialog" aria-modal="true" aria-label="Past conversations">
+            <div class="agent-sessions-offcanvas-topline">
+                <span class="panel-title" style="margin-bottom:0;">Past conversations</span>
+                <button class="dash-ctrl-btn agent-mini-btn" id="agent-sessions-offcanvas-close">Close</button>
+            </div>
+            <div class="agent-sessions-offcanvas-body">
+                <div class="agent-session-list" id="agent-past-session-list"></div>
+            </div>
+        </div>
 
         {{-- ── RIGHT SIDEBAR: tabbed viewers ─────────────────────────────── --}}
         <div class="agent-viewers-backdrop" id="agent-viewers-backdrop"></div>
