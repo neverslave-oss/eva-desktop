@@ -391,6 +391,117 @@
             font-family: monospace;
         }
 
+        /* ── Agent readable-text font bump (+2px) ── */
+        .agent-bubble { font-size: 15px; }
+        .agent-input  { font-size: 16px; }
+
+        /* ── Sessions (💬) sidebar tab ── */
+        .agent-session-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 10px;
+            overflow-y: auto;
+            min-height: 0;
+            flex: 1;
+        }
+        .agent-session-empty {
+            color: #8eaac0;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 12px;
+        }
+        .agent-session-row {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            text-align: left;
+            padding: 9px 11px;
+            border-radius: 9px;
+            border: 1px solid #223346;
+            background: #101b29;
+            color: #c9d7e4;
+            cursor: pointer;
+            transition: border-color .15s, background .15s;
+        }
+        .agent-session-row:hover { border-color: #2a8ad4; background: #122031; }
+        .agent-session-row.active {
+            border-color: #2a8ad4;
+            background: linear-gradient(90deg, #1a2f46, #122031);
+            box-shadow: inset 0 0 0 1px #2a8ad466;
+        }
+        .agent-session-row-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #e4eef7;
+        }
+        .agent-session-row-chat {
+            font-size: 12px;
+            color: #6e9cbf;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        /* ── Terminal (⌨️) sidebar tab ── */
+        .agent-terminal-tabs {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px;
+            border-bottom: 1px solid #223346;
+            background: rgba(18, 30, 43, .96);
+            flex-shrink: 0;
+            overflow-x: auto;
+        }
+        .agent-terminal-new {
+            flex-shrink: 0;
+            border: 1px solid #2a8ad4;
+            background: transparent;
+            color: #2a8ad4;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .agent-terminal-new:hover { background: rgba(42, 138, 212, .15); }
+        .agent-terminal-tab {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #223346;
+            background: #101b29;
+            color: #8eaac0;
+            border-radius: 6px;
+            padding: 5px 8px;
+            font-size: 13px;
+            font-family: monospace;
+            cursor: pointer;
+        }
+        .agent-terminal-tab.active { border-color: #2a8ad4; color: #e4eef7; background: #14283c; }
+        .agent-terminal-close {
+            color: #8eaac0;
+            line-height: 1;
+            font-size: 14px;
+            padding: 0 2px;
+        }
+        .agent-terminal-close:hover { color: #f85149; }
+        .agent-terminal-wrap {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+            background: #0b1117;
+        }
+        .agent-terminal-view {
+            position: absolute;
+            inset: 0;
+            display: none;
+            padding: 6px;
+            overflow: hidden;
+        }
+        .agent-terminal-view.active { display: block; }
+        .agent-terminal-view .xterm { height: 100%; }
+
     </style>
 
     <div id="agent-telegram-shell" class="agent-telegram-shell">
@@ -468,6 +579,8 @@
             <div class="agent-viewers-grip" id="agent-viewers-grip" title="Drag to resize"></div>
             <div class="agent-viewers-tabs" role="tablist">
                 <button class="agent-viewers-tab active" data-tab="files" role="tab" aria-selected="true">📁 Files</button>
+                <button class="agent-viewers-tab" data-tab="terminal" role="tab" aria-selected="false">⌨️ Term</button>
+                <button class="agent-viewers-tab" data-tab="sessions" role="tab" aria-selected="false">💬 Sessions</button>
                 <button class="agent-viewers-tab" data-tab="mental" role="tab" aria-selected="false">🧠 Map</button>
                 <button class="agent-viewers-tab" data-tab="browser" role="tab" aria-selected="false">🌐 Browser</button>
                 <button class="agent-viewers-tab" data-tab="computer" role="tab" aria-selected="false">🖥️ Use</button>
@@ -475,6 +588,21 @@
 
             <section class="agent-viewers-panel active" data-panel="files" role="tabpanel">
                 @include('livewire.workspace-tab')
+            </section>
+
+            <section class="agent-viewers-panel" data-panel="terminal" role="tabpanel">
+                <div class="agent-terminal-tabs" id="agent-terminal-tabs">
+                    <button class="agent-terminal-new" id="agent-terminal-new" title="Open a new terminal">＋ New</button>
+                </div>
+                <div class="agent-terminal-wrap" id="agent-terminal-wrap"></div>
+            </section>
+
+            <section class="agent-viewers-panel" data-panel="sessions" role="tabpanel">
+                <div class="agent-viewers-bar">
+                    <span style="font-size:.74em;color:#8eaac0;">💬 Sessions</span>
+                    <button class="dash-ctrl-btn agent-mini-btn" id="agent-session-new-btn" title="Create a new session">New Session</button>
+                </div>
+                <div class="agent-session-list" id="agent-session-list"></div>
             </section>
 
             <section class="agent-viewers-panel" data-panel="mental" role="tabpanel">
@@ -501,6 +629,11 @@
             </section>
         </aside>
     </div>{{-- /#agent-telegram-shell --}}
+
+    {{-- Vendored xterm.js for the Terminal viewer tab (see public/vendor/xterm/) --}}
+    <link rel="stylesheet" href="{{ asset('vendor/xterm/xterm.css') }}">
+    <script src="{{ asset('vendor/xterm/xterm.js') }}"></script>
+    <script src="{{ asset('vendor/xterm/addon-fit.js') }}"></script>
 
     {{-- Overlays (inspector, command sheet, provider sheet) --}}
     <div class="agent-inspector" id="agent-inspector">
@@ -608,6 +741,10 @@
                     });
                     panels.forEach(p => p.classList.toggle('active', p.dataset.panel === tab.dataset.tab));
                     if (tab.dataset.tab === 'files' && typeof loadWorkspaceTree === 'function') loadWorkspaceTree('/');
+                    if (tab.dataset.tab === 'terminal' && typeof initTerminalTab === 'function') initTerminalTab();
+                    if (tab.dataset.tab === 'sessions' && typeof loadAgentSessions === 'function') {
+                        loadAgentSessions(document.getElementById('agent-session-list'));
+                    }
                 }
                 tabs.forEach(tab => tab.addEventListener('click', () => selectTab(tab)));
 
@@ -673,6 +810,130 @@
                     });
                 }
             }
+
+            // ── Terminal tab: real xterm instances over WS→PTY bridge ──
+            let _agentTerminalInit = false;
+            const _agentTerminals = {}; // id -> { term, fit, ws, viewEl, tabEl }
+            let _agentTerminalSeq = 0;
+
+            function initTerminalTab() {
+                if (typeof Terminal === 'undefined' || typeof FitAddon === 'undefined') {
+                    const wrap = document.getElementById('agent-terminal-wrap');
+                    if (wrap) {
+                        wrap.innerHTML = '<div style="color:#f85149;padding:12px;font-size:.8em;">xterm.js not loaded. Rebuild frontend assets.</div>';
+                    }
+                    return;
+                }
+                if (_agentTerminalInit) return;
+                _agentTerminalInit = true;
+                document.getElementById('agent-terminal-new')?.addEventListener('click', () => addAgentTerminal());
+                // Restore the number of terminals that were open (persisted).
+                let count = 1;
+                try { count = Math.min(parseInt(localStorage.getItem('agent-terminal-count') || '1') || 1, 4); } catch (_) {}
+                for (let i = 0; i < count; i++) addAgentTerminal();
+            }
+
+            function addAgentTerminal() {
+                const wrap = document.getElementById('agent-terminal-wrap');
+                const tabsEl = document.getElementById('agent-terminal-tabs');
+                if (!wrap || !tabsEl || typeof Terminal === 'undefined') return;
+
+                _agentTerminalSeq++;
+                const id = _agentTerminalSeq;
+                const path = `/term/${id}`;
+
+                const tab = document.createElement('button');
+                tab.className = 'agent-terminal-tab active';
+                tab.textContent = `⌘ ${id}`;
+                tab.title = `Terminal ${id}`;
+
+                const close = document.createElement('span');
+                close.className = 'agent-terminal-close';
+                close.textContent = '×';
+                close.addEventListener('click', (e) => { e.stopPropagation(); closeAgentTerminal(id); });
+                tab.appendChild(close);
+
+                const newBtn = document.getElementById('agent-terminal-new');
+                if (newBtn) tabsEl.insertBefore(tab, newBtn); else tabsEl.appendChild(tab);
+
+                const view = document.createElement('div');
+                view.className = 'agent-terminal-view active';
+                wrap.appendChild(view);
+
+                const term = new Terminal({
+                    cursorBlink: true,
+                    fontFamily: 'Menlo, Consolas, "DejaVu Sans Mono", monospace',
+                    fontSize: 13,
+                    theme: {
+                        background: '#0b1117', foreground: '#d8e4ef',
+                        cursor: '#2a8ad4', selectionBackground: '#1d2c3d',
+                        black: '#0b1117', red: '#f85149', green: '#3fb950', yellow: '#d29922',
+                        blue: '#2a8ad4', magenta: '#bc8cff', cyan: '#39c5cf', white: '#d8e4ef',
+                    },
+                });
+                const fit = new FitAddon.FitAddon();
+                term.loadAddon(fit);
+                term.open(view);
+                try { fit.fit(); } catch (_) {}
+
+                const ws = new WebSocket(`ws://127.0.0.1:6090${path}`);
+                const sendResize = () => {
+                    if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+                };
+                ws.onopen = () => { try { fit.fit(); sendResize(); } catch (_) {} };
+                ws.onmessage = (ev) => {
+                    try {
+                        const msg = JSON.parse(ev.data);
+                        if (msg.type === 'output') term.write(msg.data);
+                        else if (msg.type === 'exit') term.write('\r\n\x1b[31m[terminal exited]\x1b[0m\r\n');
+                    } catch (_) { term.write(ev.data || ''); }
+                };
+                ws.onerror = () => {
+                    term.write('\r\n\x1b[31m[ws error — is the terminal-bridge running on :6090?]\x1b[0m\r\n');
+                };
+                ws.onclose = () => { /* keep UI; PTY closed */ };
+
+                term.onData((data) => {
+                    if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'input', data }));
+                });
+                term.onResize(({ cols, rows }) => {
+                    if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+                });
+                window.addEventListener('resize', () => { try { fit.fit(); sendResize(); } catch (_) {} });
+
+                tab.addEventListener('click', () => {
+                    Object.values(_agentTerminals).forEach(t => { t.tabEl.classList.remove('active'); t.viewEl.classList.remove('active'); });
+                    tab.classList.add('active');
+                    view.classList.add('active');
+                    setTimeout(() => { try { fit.fit(); sendResize(); } catch (_) {} }, 10);
+                });
+
+                _agentTerminals[id] = { id, term, fit, ws, viewEl: view, tabEl: tab };
+                persistTerminalCount();
+            }
+
+            function closeAgentTerminal(id) {
+                const t = _agentTerminals[id];
+                if (!t) return;
+                try { t.ws.close(); } catch (_) {}
+                t.tabEl.remove();
+                t.viewEl.remove();
+                delete _agentTerminals[id];
+                persistTerminalCount();
+                // If none left (and xterm available), reopen one so the tab isn't empty.
+                const remaining = Object.values(_agentTerminals);
+                if (!remaining.length && typeof Terminal !== 'undefined') addAgentTerminal();
+            }
+
+            function persistTerminalCount() {
+                const n = Object.keys(_agentTerminals).length || 1;
+                try { localStorage.setItem('agent-terminal-count', String(n)); } catch (_) {}
+            }
+
+            // ── Sessions tab: New Session button + hookups to dashboard.js ──
+            document.getElementById('agent-session-new-btn')?.addEventListener('click', () => {
+                if (typeof createAgentSession === 'function') createAgentSession();
+            });
         })();
     </script>
 </div>

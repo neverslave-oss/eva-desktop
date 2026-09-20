@@ -39,3 +39,4 @@ storage/framework/sessions/*
 nativephp/
 dist/
 packages/
+/terminal-bridge/node_modules/
