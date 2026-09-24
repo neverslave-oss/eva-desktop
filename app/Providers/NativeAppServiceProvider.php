@@ -41,28 +41,6 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             Window::current()->hide();
         });
 
-
-    protected function startupRouteName(): string
-    {
-        return $this->hasCompletedSetup() ? 'chat' : 'setup-wizard';
-    }
-
-    protected function hasCompletedSetup(): bool
-    {
-        $setupCompleted = filter_var(AppSetting::get('setup_completed', false), FILTER_VALIDATE_BOOLEAN);
-
-        if ($setupCompleted) {
-            return true;
-        }
-
-        foreach (['install_mode', 'install_dir', 'workspace_path'] as $legacyKey) {
-            if (AppSetting::has($legacyKey)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
         MenuBar::create()
             ->icon(public_path('icon.png'))
             ->label('EvAgent Desktop')
@@ -101,6 +79,28 @@ class NativeAppServiceProvider implements ProvidesPhpIni
         if (config('nativephp.updater.enabled', true) && class_exists(\Native\Desktop\Facades\Updater::class)) {
             \Native\Desktop\Facades\Updater::checkForUpdates();
         }
+    }
+
+    protected function startupRouteName(): string
+    {
+        return $this->hasCompletedSetup() ? 'chat' : 'setup-wizard';
+    }
+
+    protected function hasCompletedSetup(): bool
+    {
+        $setupCompleted = filter_var(AppSetting::get('setup_completed', false), FILTER_VALIDATE_BOOLEAN);
+
+        if ($setupCompleted) {
+            return true;
+        }
+
+        foreach (['install_mode', 'install_dir', 'workspace_path'] as $legacyKey) {
+            if (AppSetting::has($legacyKey)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
