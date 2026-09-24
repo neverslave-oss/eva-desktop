@@ -163,7 +163,10 @@ return [
      * Define your own scripts to run before and after the build process.
      */
     'prebuild' => [
-        // 'npm run build',
+        // Enable the guided (non-one-click) Windows installer so the user can
+        // choose the installation folder. NativePHP hardcodes the NSIS block,
+        // so we patch the mirrored electron-builder.mjs before it runs.
+        'node scripts/patch-nsis-guided-install.mjs',
     ],
 
     'postbuild' => [
