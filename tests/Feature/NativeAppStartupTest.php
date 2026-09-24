@@ -22,10 +22,36 @@ test('fresh installs open the setup wizard on launch', function () {
     expect(nativeAppProvider()->exposedStartupRouteName())->toBe('setup-wizard');
 });
 
-test('legacy installs still open the chat route on launch', function () {
-    AppSetting::set('install_dir', '~/.kernel-evolving');
+test('legacy installs that completed setup still open the chat route', function () {
+    // Legacy installs set setup_completed=true but predate the versioned marker.
+    AppSetting::set('setup_completed', true);
 
     expect(nativeAppProvider()->exposedStartupRouteName())->toBe('chat');
+});
+
+test('leftover legacy keys without the completion marker open the wizard', function () {
+    // A machine with stale data from a previous app identity / interrupted
+    // install has install_mode/install_dir/workspace_path but never finished
+    // the wizard. It must NOT skip straight to the dashboard.
+    AppSetting::set('install_dir', '~/.kernel-evolving');
+    AppSetting::set('install_mode', 'baremetal');
+    AppSetting::set('workspace_path', '~/.kernel-evolving');
+
+    expect(nativeAppProvider()->exposedStartupRouteName())->toBe('setup-wizard');
+});
+
+test('setup completed for the current version opens the chat route', function () {
+    AppSetting::set('setup_completed', true);
+    AppSetting::set('setup_completed_version', config('nativephp.version'));
+
+    expect(nativeAppProvider()->exposedStartupRouteName())->toBe('chat');
+});
+
+test('setup completed for a different version re-runs the wizard', function () {
+    AppSetting::set('setup_completed', true);
+    AppSetting::set('setup_completed_version', '0.0.0-old');
+
+    expect(nativeAppProvider()->exposedStartupRouteName())->toBe('setup-wizard');
 });
 
 test('finishing the setup wizard persists setup completion', function () {
@@ -33,7 +59,8 @@ test('finishing the setup wizard persists setup completion', function () {
         ->call('finish')
         ->assertRedirect(route('dashboard', absolute: false));
 
-    expect(filter_var(AppSetting::get('setup_completed'), FILTER_VALIDATE_BOOLEAN))->toBeTrue();
+    expect(filter_var(AppSetting::get('setup_completed'), FILTER_VALIDATE_BOOLEAN))->toBeTrue()
+        ->and(AppSetting::get('setup_completed_version'))->toBe(config('nativephp.version'));
 });
 
 test('windows nsis config allows guided installation', function () {

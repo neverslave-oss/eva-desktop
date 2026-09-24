@@ -476,6 +476,10 @@ class SetupWizard extends Component
         AppSetting::set('install_mode', $this->installMode === 'docker' ? 'docker' : 'baremetal');
         AppSetting::set('install_dir', $this->installMode === 'docker' ? $this->dockerRepoDir : $this->installDir);
         AppSetting::set('setup_completed', true);
+        // Record the app version under which setup was completed so that a
+        // fresh install or upgrade to a different version reliably re-runs
+        // the wizard instead of skipping straight to the dashboard.
+        AppSetting::set('setup_completed_version', config('nativephp.version'));
         AppSetting::set('collective_memory_url', $this->collectiveMemoryUrl);
         AppSetting::set('telegram_bot_token', $this->telegramBotToken);
         AppSetting::set('telegram_chat_id', $this->telegramChatId);

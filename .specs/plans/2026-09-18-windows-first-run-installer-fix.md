@@ -21,8 +21,25 @@ Restore the intended first-run experience for packaged desktop builds and make t
 - [x] Add an existence helper to `app/Models/AppSetting.php` for legacy detection.
 - [x] Update `config/nativephp.php` NSIS options.
 - [x] Add focused Pest coverage for startup routing and installer config.
-- [ ] Run targeted tests.
+- [x] Run targeted tests.
+
+## Follow-up fix (2026-09-25) — leftover-data false positive
+Even after the guided installer worked, the setup wizard was skipped on a machine
+that had stale app data from a previous app identity/install. Root cause: `hasCompletedSetup()`
+treated the mere presence of legacy keys (`install_mode`/`install_dir`/`workspace_path`)
+as proof of completion, so leftover data skipped the wizard.
+
+Fix (version-aware first-run detection):
+- `NativeAppServiceProvider::hasCompletedSetup()` now only counts the explicit
+  `setup_completed` marker. Legacy installs (marker present, no version) are
+  preserved as complete; a fresh install or an app upgrade (marker present but
+  `setup_completed_version` != current `nativephp.version`) re-runs the wizard.
+- `SetupWizard::finish()` now also persists `setup_completed_version` =
+  `config('nativephp.version')`.
 
 ## Validation notes
 - Workspace diagnostics report no errors in the touched PHP/config/test files.
-- Targeted Pest execution is currently blocked in this checkout because `vendor/bin/pest` is unavailable.
+- `vendor/bin/pest tests/Feature/NativeAppStartupTest.php` → 7 passed / 11 assertions.
+- Unrelated pre-existing teardown error: `TunnelService::__destruct()` calls the
+  `Log` facade after the container is gone, producing a `Class "log" does not exist`
+  fatal AFTER the suite finishes. Not caused by this change.
