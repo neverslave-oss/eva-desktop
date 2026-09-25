@@ -37,9 +37,38 @@ Fix (version-aware first-run detection):
 - `SetupWizard::finish()` now also persists `setup_completed_version` =
   `config('nativephp.version')`.
 
+## Follow-up fix (2026-09-25) — "no such table: app_settings" crash
+Installed-app log (2026-09-20) showed the real reason the app didn't open after
+install:
+
+```
+SQLSTATE[HY000]: General error: 1 no such table: app_settings
+(Connection: nativephp, Database: .../database/nativephp.sqlite,
+ SQL: select * from "app_settings" ...)
+```
+
+The app runs against the `nativephp` connection (`database/nativephp.sqlite`),
+which NativePHP registers and sets as the default. `SetupWizard::mount()` →
+`AppSetting::get('central_url')` crashed because `app_settings` didn't exist.
+
+Root cause in `ensureDatabaseReady()`: it only ran `migrate` when the DB had
+ZERO tables (`if (empty($tables))`), and it swallowed all exceptions. A partially
+migrated DB (or a failed/skipped migration) left `app_settings` missing, then the
+wizard crashed on mount.
+
+Fix:
+- `ensureDatabaseReady()` now runs `Artisan::call('migrate')` unconditionally on
+  every boot (idempotent — Laravel tracks applied migrations). This guarantees
+  `app_settings` exists before the wizard mounts, and no longer swallows the error
+  that previously let the app proceed into a guaranteed crash.
+
 ## Validation notes
 - Workspace diagnostics report no errors in the touched PHP/config/test files.
-- `vendor/bin/pest tests/Feature/NativeAppStartupTest.php` → 7 passed / 11 assertions.
+- `vendor/bin/pest tests/Feature/NativeAppStartupTest.php tests/Feature/EnsureDatabaseReadyTest.php`
+  → 8 passed / 12 assertions.
+- New `EnsureDatabaseReadyTest.php` (no RefreshDatabase — running migrate conflicts
+  with the test-DB transaction) verifies `ensureDatabaseReady()` creates `app_settings`
+  on a fresh database.
 - Unrelated pre-existing teardown error: `TunnelService::__destruct()` calls the
   `Log` facade after the container is gone, producing a `Class "log" does not exist`
   fatal AFTER the suite finishes. Not caused by this change.

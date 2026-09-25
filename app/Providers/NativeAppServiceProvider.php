@@ -145,27 +145,24 @@ class NativeAppServiceProvider implements ProvidesPhpIni
      */
     protected function ensureDatabaseReady(): void
     {
-        try {
-            $dbPath = config('database.connections.nativephp.database')
-                ?? config('database.connections.sqlite.database')
-                ?? database_path('database.sqlite');
+        $dbPath = config('database.connections.nativephp.database')
+            ?? config('database.connections.sqlite.database')
+            ?? database_path('database.sqlite');
 
-            // Create the database file if it doesn't exist
-            if (! file_exists($dbPath)) {
-                File::ensureDirectoryExists(dirname($dbPath));
-                File::put($dbPath, '');
-            }
-
-            // Check if the database has any tables — if not, run migrations only
-            $tables = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-
-            if (empty($tables)) {
-                Artisan::call('migrate', ['--force' => true]);
-            }
-        } catch (\Throwable $e) {
-            // Log but don't crash — the app should still try to open
-            report($e);
+        // Create the database file if it doesn't exist
+        if (! file_exists($dbPath)) {
+            File::ensureDirectoryExists(dirname($dbPath));
+            File::put($dbPath, '');
         }
+
+        // Run migrations idempotently. Laravel tracks already-applied
+        // migrations in the `migrations` table, so running `migrate` on every
+        // boot is safe and guarantees every table (including `app_settings`)
+        // exists before the setup wizard mounts. Previously we only migrated
+        // when the DB had zero tables, which let a partially-migrated DB skip
+        // `app_settings` and crash the wizard with "no such table:
+        // app_settings" (SetupWizard::mount() → AppSetting::get()).
+        Artisan::call('migrate', ['--force' => true]);
     }
 
 
