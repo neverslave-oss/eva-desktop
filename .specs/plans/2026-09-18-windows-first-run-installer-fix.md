@@ -62,10 +62,21 @@ Fix:
   `app_settings` exists before the wizard mounts, and no longer swallows the error
   that previously let the app proceed into a guaranteed crash.
 
+## Follow-up (2026-09-25) — block app until setup is complete
+The app could reach a usable "ready to use" state before the wizard finished.
+Added `EnsureSetupCompleted` middleware (`app/Http/Middleware/EnsureSetupCompleted.php`):
+- Redirects any non-wizard route to `setup-wizard` while setup is incomplete.
+- Redirects the wizard to `chat` once setup is complete (or after an upgrade).
+- Applied to all user-facing app routes (dashboard tabs + settings) and the
+  setup-wizard route via the `setup.completed` alias (registered in
+  `bootstrap/app.php`). API/debug/notify/health routes stay unguarded.
+- Setup-completion logic centralized in `AppSetting::isSetupComplete()` (version-aware);
+  `NativeAppServiceProvider::hasCompletedSetup()` delegates to it.
+
 ## Validation notes
 - Workspace diagnostics report no errors in the touched PHP/config/test files.
 - `vendor/bin/pest tests/Feature/NativeAppStartupTest.php tests/Feature/EnsureDatabaseReadyTest.php`
-  → 8 passed / 12 assertions.
+  → 11 passed / 17 assertions (added middleware HTTP tests).
 - New `EnsureDatabaseReadyTest.php` (no RefreshDatabase — running migrate conflicts
   with the test-DB transaction) verifies `ensureDatabaseReady()` creates `app_settings`
   on a fresh database.

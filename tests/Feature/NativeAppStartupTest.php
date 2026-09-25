@@ -67,3 +67,25 @@ test('windows nsis config allows guided installation', function () {
     expect(config('nativephp.nsis.one_click'))->toBeFalse()
         ->and(config('nativephp.nsis.allow_to_change_installation_directory'))->toBeTrue();
 });
+
+test('app routes redirect to the setup wizard before setup is complete', function () {
+    // Fresh install — setup not complete. The chat page must not be reachable.
+    $this->get(route('chat', absolute: false))
+        ->assertRedirect(route('setup-wizard', absolute: false));
+});
+
+test('app routes are reachable once setup is complete', function () {
+    AppSetting::set('setup_completed', true);
+    AppSetting::set('setup_completed_version', config('nativephp.version'));
+
+    $this->get(route('chat', absolute: false))
+        ->assertOk();
+});
+
+test('setup wizard redirects to chat once setup is complete', function () {
+    AppSetting::set('setup_completed', true);
+    AppSetting::set('setup_completed_version', config('nativephp.version'));
+
+    $this->get(route('setup-wizard', absolute: false))
+        ->assertRedirect(route('chat', absolute: false));
+});

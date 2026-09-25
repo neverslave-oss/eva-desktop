@@ -88,30 +88,8 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
     protected function hasCompletedSetup(): bool
     {
-        // Only the explicit marker written by the setup wizard's finish()
-        // counts as "setup complete". We deliberately DO NOT treat the mere
-        // presence of legacy keys (install_mode/install_dir/workspace_path)
-        // as proof of completion: those can leak over from a previous app
-        // identity or an interrupted install and would cause the wizard to be
-        // skipped on a machine that was never actually set up.
-        $setupCompleted = filter_var(AppSetting::get('setup_completed', false), FILTER_VALIDATE_BOOLEAN);
-
-        if (! $setupCompleted) {
-            return false;
-        }
-
-        // Legacy installs completed setup before the versioned marker existed,
-        // so they have no recorded version — treat them as complete to avoid
-        // forcing existing users through the wizard again.
-        $completedVersion = AppSetting::get('setup_completed_version');
-
-        if (empty($completedVersion)) {
-            return true;
-        }
-
-        // Re-run the wizard after an upgrade to a different app version so the
-        // user is guided through any changed setup steps on first launch.
-        return $completedVersion === config('nativephp.version');
+        // Version-aware setup completion check (see AppSetting::isSetupComplete()).
+        return AppSetting::isSetupComplete();
     }
 
     /**
