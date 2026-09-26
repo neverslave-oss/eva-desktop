@@ -163,6 +163,12 @@ return [
      * Define your own scripts to run before and after the build process.
      */
     'prebuild' => [
+        // Remove any stale Vite dev-server `public/hot` marker. If it is left
+        // behind from `npm run dev`, `@vite()` generates dev-server asset URLs
+        // and the packaged app renders unstyled (no Vite dev server exists in
+        // production). Must run before `npm run build` / electron-builder.
+        'node scripts/cleanup-vite-hot.mjs',
+
         // Enable the guided (non-one-click) Windows installer so the user can
         // choose the installation folder. NativePHP hardcodes the NSIS block,
         // so we patch the mirrored electron-builder.mjs before it runs.
