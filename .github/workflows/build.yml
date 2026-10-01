@@ -196,7 +196,7 @@ jobs:
           node-version: '22'
 
       - name: Install PHP deps
-        run: composer update --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --no-progress
         env:
           COMPOSER_HOME: ${{ runner.temp }}\composer
 
