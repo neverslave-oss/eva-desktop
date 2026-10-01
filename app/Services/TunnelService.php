@@ -540,10 +540,22 @@ class TunnelService
     }
 
     /**
-     * Disconnect (used by destructor or cleanup).
+     * Best-effort cleanup at process teardown.
+     *
+     * This runs during PHP shutdown, after the service container has already
+     * been turned down, so touching facades like `Log` here throws a
+     * ReflectionException ("Target class [log] does not exist") that turns a
+     * clean shutdown into a fatal (previously exit 255 in the test suite).
+     * The destructor is only cleanup — it must never throw or crash the
+     * process, so failures are swallowed.
      */
     public function __destruct()
     {
-        $this->disconnect();
+        try {
+            $this->disconnect();
+        } catch (\Throwable $e) {
+            // Container is already down; facades are unavailable and this is
+            // best-effort cleanup — silently ignore to avoid a teardown fatal.
+        }
     }
 }
