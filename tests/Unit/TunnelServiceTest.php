@@ -11,6 +11,14 @@ function wsEndpoint(TunnelService $tunnel): string
     return $method->invoke($tunnel);
 }
 
+function authUrl(TunnelService $tunnel): string
+{
+    $method = new ReflectionMethod(TunnelService::class, 'authUrl');
+    $method->setAccessible(true);
+
+    return $method->invoke($tunnel);
+}
+
 test('standard https port 443 is omitted from url', function () {
     config(['kernel-desktop.central.url' => 'https://kernel-central.test']);
     config(['kernel-desktop.reverb.host' => '']);
@@ -55,3 +63,38 @@ test('explicit reverb host takes precedence', function () {
 
     expect(wsEndpoint($tunnel))->toBe('ws://reverb.local:8080/app/appkey');
 });
+
+test('wsEndpoint throws a clear config error when central url is unset', function () {
+    config(['kernel-desktop.central.url' => null]);
+    config(['kernel-desktop.reverb.host' => '']);
+
+    $tunnel = new TunnelService(new KernelCentralService());
+
+    wsEndpoint($tunnel);
+})->throws(
+    RuntimeException::class,
+    'kernel-desktop.central.url is not configured'
+);
+
+test('wsEndpoint throws a clear config error when central url is an empty string', function () {
+    config(['kernel-desktop.central.url' => '']);
+    config(['kernel-desktop.reverb.host' => '']);
+
+    $tunnel = new TunnelService(new KernelCentralService());
+
+    wsEndpoint($tunnel);
+})->throws(
+    RuntimeException::class,
+    'kernel-desktop.central.url is not configured'
+);
+
+test('authUrl throws a clear config error when central url is unset', function () {
+    config(['kernel-desktop.central.url' => null]);
+
+    $tunnel = new TunnelService(new KernelCentralService());
+
+    authUrl($tunnel);
+})->throws(
+    RuntimeException::class,
+    'kernel-desktop.central.url is not configured'
+);

@@ -103,11 +103,35 @@ class TunnelService
     // -----------------------------------------------------------------------
 
     /**
+     * Get the configured kernel-central base URL.
+     *
+     * The central URL is required: it must come from config
+     * (config/kernel-desktop.php), never from a hardcoded literal in code.
+     * A missing or empty value means the environment is misconfigured and
+     * should fail loudly instead of silently talking to an arbitrary host.
+     *
+     * @throws \RuntimeException when the central URL is not configured.
+     */
+    protected function centralUrl(): string
+    {
+        $url = config('kernel-desktop.central.url');
+
+        if (! is_string($url) || $url === '') {
+            throw new \RuntimeException(
+                'kernel-desktop.central.url is not configured. Set KERNEL_CENTRAL_URL '.
+                '(or kernel-desktop.central.url in config/kernel-desktop.php) before '.
+                'using the tunnel service.'
+            );
+        }
+
+        return $url;
+    }
+
+    /**
      * Get the Reverb WS endpoint URL.
      */
     protected function wsEndpoint(): string
     {
-        $centralUrl = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.com');
         $reverbHost = config('kernel-desktop.reverb.host', '');
         $reverbPort = config('kernel-desktop.reverb.port', 8080);
         $appKey = config('kernel-desktop.reverb.app_key', '');
@@ -122,9 +146,16 @@ class TunnelService
         }
 
         // Derive from central URL: replace https:// with wss://
-        $parsed = parse_url($centralUrl);
+        $parsed = parse_url($this->centralUrl());
         $scheme = ($parsed['scheme'] ?? 'https') === 'https' ? 'wss' : 'ws';
-        $host = $parsed['host'] ?? 'kernel-central.neverslave.com';
+        $host = $parsed['host'] ?? '';
+
+        if ($host === '') {
+            throw new \RuntimeException(
+                "Cannot derive Reverb host from kernel-central URL [{$this->centralUrl()}]."
+            );
+        }
+
         $port = ($reverbPort && $reverbPort !== 80 && $reverbPort !== 443) ? ":{$reverbPort}" : '';
 
         return "{$scheme}://{$host}{$port}/app/{$appKey}";
@@ -135,9 +166,7 @@ class TunnelService
      */
     protected function authUrl(): string
     {
-        $base = config('kernel-desktop.central.url', 'https://kernel-central.neverslave.com');
-
-        return rtrim($base, '/') . '/api/broadcasting/auth';
+        return rtrim($this->centralUrl(), '/') . '/api/broadcasting/auth';
     }
 
     /**
