@@ -269,6 +269,22 @@ class TunnelService
     }
 
     /**
+     * Create the WebSocket client for the given endpoint.
+     *
+     * Extracted as a factory so tests can substitute a mock client without
+     * touching the network.
+     */
+    protected function newClient(string $endpoint): Client
+    {
+        return new Client($endpoint, [
+            'timeout' => 15,
+            'headers' => [
+                'User-Agent' => 'KernelDesktopTunnel/1.0',
+            ],
+        ]);
+    }
+
+    /**
      * Establish the actual WS connection and subscribe.
      */
     protected function establishConnection(): bool
@@ -279,12 +295,7 @@ class TunnelService
         try {
             Log::info('Tunnel connecting', ['endpoint' => $endpoint]);
 
-            $this->client = new Client($endpoint, [
-                'timeout' => 15,
-                'headers' => [
-                    'User-Agent' => 'KernelDesktopTunnel/1.0',
-                ],
-            ]);
+            $this->client = $this->newClient($endpoint);
 
             // Step 1: Wait for pusher:connection_established
             $raw = $this->client->receive();
