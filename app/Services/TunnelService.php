@@ -140,7 +140,7 @@ class TunnelService
         // otherwise derive from kernel-central URL.
         if ($reverbHost) {
             $scheme = config('kernel-desktop.reverb.scheme', 'wss');
-            $port = $reverbPort ? ":{$reverbPort}" : '';
+            $port = ($reverbPort && $reverbPort !== 80 && $reverbPort !== 443) ? ":{$reverbPort}" : '';
 
             return "{$scheme}://{$reverbHost}{$port}/app/{$appKey}";
         }

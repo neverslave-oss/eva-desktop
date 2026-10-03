@@ -64,6 +64,41 @@ test('explicit reverb host takes precedence', function () {
     expect(wsEndpoint($tunnel))->toBe('ws://reverb.local:8080/app/appkey');
 });
 
+test('standard https port 443 is omitted when an explicit reverb host is set', function () {
+    config(['kernel-desktop.central.url' => 'https://kernel-central.test']);
+    config(['kernel-desktop.reverb.host' => 'reverb.local']);
+    config(['kernel-desktop.reverb.port' => 443]);
+    config(['kernel-desktop.reverb.scheme' => 'wss']);
+    config(['kernel-desktop.reverb.app_key' => 'appkey']);
+
+    $tunnel = new TunnelService(new KernelCentralService());
+
+    expect(wsEndpoint($tunnel))->toBe('wss://reverb.local/app/appkey');
+});
+
+test('standard http port 80 is omitted when an explicit reverb host is set', function () {
+    config(['kernel-desktop.central.url' => 'http://kernel-central.test']);
+    config(['kernel-desktop.reverb.host' => 'reverb.local']);
+    config(['kernel-desktop.reverb.port' => 80]);
+    config(['kernel-desktop.reverb.scheme' => 'ws']);
+    config(['kernel-desktop.reverb.app_key' => 'appkey']);
+
+    $tunnel = new TunnelService(new KernelCentralService());
+
+    expect(wsEndpoint($tunnel))->toBe('ws://reverb.local/app/appkey');
+});
+
+test('falsy port appends no port suffix', function () {
+    config(['kernel-desktop.central.url' => 'https://kernel-central.test']);
+    config(['kernel-desktop.reverb.host' => '']);
+    config(['kernel-desktop.reverb.port' => null]);
+    config(['kernel-desktop.reverb.app_key' => 'appkey']);
+
+    $tunnel = new TunnelService(new KernelCentralService());
+
+    expect(wsEndpoint($tunnel))->toBe('wss://kernel-central.test/app/appkey');
+});
+
 test('wsEndpoint throws a clear config error when central url is unset', function () {
     config(['kernel-desktop.central.url' => null]);
     config(['kernel-desktop.reverb.host' => '']);
