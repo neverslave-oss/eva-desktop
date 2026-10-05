@@ -146,9 +146,26 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
     /**
      * Return an array of php.ini directives to be set.
+     *
+     * The bundled static-php-cli PHP (PHP 8.4, opcache compiled in) aborts on
+     * Windows with "Fatal Error: Opcode handlers are unusable due to ASLR"
+     * unless opcache.file_cache is configured. Provide a writable per-app cache
+     * dir so `artisan serve` can boot and the window can render.
      */
     public function phpIni(): array
     {
-        return [];
+        // The Electron runtime sets NATIVEPHP_USER_DATA_PATH to the writable
+        // per-app user-data dir (e.g. %APPDATA%\eva-agent). Use it for the
+        // opcache file cache so the bundled opcache survives Windows ASLR.
+        $userData = env('NATIVEPHP_USER_DATA_PATH');
+
+        return [
+            'opcache.file_cache' => ($userData
+                ? rtrim(str_replace('\\', '/', $userData), '/').'/opcache'
+                : storage_path('framework/opcache')),
+            'opcache.file_cache_fallback' => 1,
+            'opcache.validate_timestamps' => env('APP_ENV') === 'production' ? 0 : 1,
+            'opcache.enable_cli' => 1,
+        ];
     }
 }
