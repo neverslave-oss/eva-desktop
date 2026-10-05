@@ -3422,9 +3422,41 @@ async function checkVoiceServer() {
             const openapiRes = await fetch(`${base}/openapi.json`, { signal: AbortSignal.timeout(3000) });
             if (openapiRes.ok) {
                 const spec = await openapiRes.json();
-                hasVoiceEndpoints = !!(spec?.paths?.['/transcribe'] && spec?.paths?.['/voice/chat']);
+                hasVoiceEndpoints = !!spec?.paths?.['/transcribe'] && !!spec?.paths?.['/voice/chat'];
             }
         } catch (_) { }
+
+        // Pocket native mode: verify the brain exposes the OpenAI-compatible
+        // native audio layer added to EVA (/v1/audio/speech + transcriptions).
+        if (_vVoiceEngine === 'pocket') {
+            let hasPocket = false;
+            try {
+                const openapiRes = await fetch(`${base}/openapi.json`, { signal: AbortSignal.timeout(3000) });
+                if (openapiRes.ok) {
+                    const spec = await openapiRes.json();
+                    hasPocket = !!spec?.paths?.['/v1/audio/speech'] && !!spec?.paths?.['/v1/audio/transcriptions'];
+                }
+            } catch (_) { }
+            _vVoiceReady = Boolean((j.status === 'ok' || j.llm) && hasPocket && mediaSupported);
+            if (!_vVoiceReady) {
+                const reason = !mediaSupported
+                    ? 'browser mic APIs unavailable'
+                    : (!hasPocket ? 'native /v1/audio (Pocket TTS) not exposed on this brain' : 'server not ready');
+                el.textContent = `⚠ ${reason}`;
+                el.style.color = '#d29922';
+                vSetMicEnabled(false);
+                vSetRetryEnabled(false);
+                vSetWaveMode('idle', 'offline');
+                vSetStatus('Voice not ready: ' + reason);
+                return;
+            }
+            el.textContent = `✅ Pocket TTS native (${j.status === 'ok' ? 'Kernel-Evo' : 'Brain'})`;
+            el.style.color = '#3fb950';
+            vSetMicEnabled(true);
+            vSetWaveMode('idle', 'ready');
+            vSetStatus('Ready — native Pocket TTS voice loop (hold SPACE)');
+            return;
+        }
 
         _vVoiceReady = Boolean((j.status === 'ok' || j.llm) && hasVoiceEndpoints && mediaSupported);
 
@@ -3618,10 +3650,13 @@ async function vRetryLastTts(opts = {}) {
     vSetWaveMode('cloning', 'cloning');
     vSetStatus(auto ? 'Generating voice clone in background…' : 'Generating voice clone for last reply…');
     try {
+        const ttsBody = { text: _vLastAssistantText, session_id: _vSessionId };
+        const eng = vVoiceEngine();
+        if (eng === 'pocket') ttsBody.tts_engine = 'pocket:english';
         const rr = await vFetchWithTimeout(`${base}/voice/tts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: _vLastAssistantText, session_id: _vSessionId })
+            body: JSON.stringify(ttsBody)
         }, 210000);
         if (!rr.ok) {
             let msg = `TTS ${rr.status}`;
@@ -4143,10 +4178,13 @@ async function vStopRecording() {
             vSetWaveMode('thinking', 'thinking');
             vSetStatus('Thinking…');
             // Step 2: chat + optional TTS clone
+            const chatBody = { text: userText, session_id: _vSessionId };
+            const eng = vVoiceEngine();
+            if (eng === 'pocket') chatBody.tts_engine = 'pocket:english';
             const cr = await vFetchWithTimeout(`${base}/voice/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: userText, session_id: _vSessionId })
+                body: JSON.stringify(chatBody)
             }, 210000);
             if (!cr.ok) {
                 let msg = `Chat ${cr.status}`;
