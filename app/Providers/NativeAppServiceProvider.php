@@ -147,25 +147,29 @@ class NativeAppServiceProvider implements ProvidesPhpIni
     /**
      * Return an array of php.ini directives to be set.
      *
-     * The bundled static-php-cli PHP (PHP 8.4, opcache compiled in) aborts on
-     * Windows with "Fatal Error: Opcode handlers are unusable due to ASLR"
-     * unless opcache.file_cache is configured. Provide a writable per-app cache
-     * dir so `artisan serve` can boot and the window can render.
+     * The NativePHP Electron runtime builds each PHP process env without
+     * TMP/TEMP, so on Windows sys_get_temp_dir() can fall back to C:\WINDOWS,
+     * which the app cannot write. Any Symfony Process::run() then fails with
+     * "A temporary file could not be opened ... sf_proc_*.out.lock" and the
+     * request 500s (observed on the setup wizard, which calls detectDocker()).
+     * Pin sys_temp_dir to a writable per-app dir so spawned processes work.
      */
     public function phpIni(): array
     {
         // The Electron runtime sets NATIVEPHP_USER_DATA_PATH to the writable
-        // per-app user-data dir (e.g. %APPDATA%\eva-agent). Use it for the
-        // opcache file cache so the bundled opcache survives Windows ASLR.
-        $userData = env('NATIVEPHP_USER_DATA_PATH');
+        // per-app user-data dir (e.g. %APPDATA%\eva-agent). Use it for a
+        // writable temp dir so Symfony Process can create its lock files.
+        $userData = rtrim(str_replace('\\', '/', env('NATIVEPHP_USER_DATA_PATH') ?: storage_path('framework')), '/');
+        $tmpDir = $userData.'/tmp';
+
+        // Ensure the temp dir exists (PHP creates it lazily, but create now to
+        // be safe and to fail loudly in development if it is not writable).
+        if (! is_dir($tmpDir)) {
+            @mkdir($tmpDir, 0777, true);
+        }
 
         return [
-            'opcache.file_cache' => ($userData
-                ? rtrim(str_replace('\\', '/', $userData), '/').'/opcache'
-                : storage_path('framework/opcache')),
-            'opcache.file_cache_fallback' => 1,
-            'opcache.validate_timestamps' => env('APP_ENV') === 'production' ? 0 : 1,
-            'opcache.enable_cli' => 1,
+            'sys_temp_dir' => $tmpDir,
         ];
     }
 }
