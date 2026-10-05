@@ -22,7 +22,8 @@
             </select>
             <span style="font-size:0.75em;color:#8b949e;">Voice engine:</span>
             <select id="v-voice-engine" class="dash-mono-input">
-                <option value="default">Default (native)</option>
+                <option value="default">Default (native EVA voice loop)</option>
+                <option value="pocket">Pocket TTS · native in-process</option>
                 <option value="elevenlabs">ElevenLabs (STT + TTS)</option>
             </select>
             <span id="v-server-status" style="font-size:0.72em;color:#8b949e;">—</span>
